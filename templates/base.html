@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LiveWire</title>
+    <meta http-equiv="refresh" content="{{ refresh_seconds }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='phase75_actions.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <div>
+                <div class="eyebrow">Internal Monitoring</div>
+                <h1><a href="{{ url_for('dashboard.index') }}">LiveWire</a></h1>
+            </div>
+            <nav class="header-nav">
+                <a href="{{ url_for('dashboard.index') }}">Dashboard</a>
+                <a href="{{ url_for('alerts.alerts') }}">Alerts</a>
+                <a href="{{ url_for('events.events') }}">Events</a>
+                <a href="{{ url_for('actions.actions') }}">Actions</a>
+                <a href="{{ url_for('inventory.inventory') }}">Inventory</a>
+                <a href="{{ url_for('settings.settings') }}">Settings</a>
+            </nav>
+            <div class="header-meta"><span>Auto refresh: {{ refresh_seconds }}s</span></div>
+        </div>
+    </header>
+    <main class="container">{% block content %}{% endblock %}</main>
+</body>
+</html>

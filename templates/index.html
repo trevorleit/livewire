@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="summary-grid">
+    <div class="summary-card"><div class="summary-label">Total Machines</div><div class="summary-value">{{ total_machines }}</div></div>
+    <div class="summary-card online-glow"><div class="summary-label">Online</div><div class="summary-value">{{ online_count }}</div></div>
+    <div class="summary-card offline-glow"><div class="summary-label">Offline</div><div class="summary-value">{{ offline_count }}</div></div>
+    <div class="summary-card warn-glow"><div class="summary-label">Open Alerts</div><div class="summary-value">{{ open_alerts }}</div></div>
+</section>
+
+<section class="panel">
+    <div class="panel-header"><h2>Machines</h2><p>Current system status for connected devices.</p></div>
+    <div class="grid">
+        {% for machine in machines %}
+        <a class="card-link" href="{{ url_for('machines.machine_detail', machine_id=machine.id) }}">
+            <article class="card {{ 'online' if machine.is_online else 'offline' }}">
+                <div class="card-top">
+                    <div>
+                        <h3>{{ machine.display_name or machine.hostname }}</h3>
+                        <div class="muted">{{ machine.hostname }} • {{ machine.os_name or 'Unknown OS' }}</div>
+                    </div>
+                    <div class="card-badges">
+                        {% if machine.machine_role %}<span class="status-pill pill-muted">{{ machine.machine_role }}</span>{% endif %}
+                        {% if machine.open_alert_count %}<span class="status-pill pill-warning">{{ machine.open_alert_count }} alert{{ '' if machine.open_alert_count == 1 else 's' }}</span>{% endif %}
+                        <span class="status-pill {{ 'pill-online' if machine.is_online else 'pill-offline' }}">{{ 'Online' if machine.is_online else 'Offline' }}</span>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-box"><span class="stat-label">IP</span><strong>{{ machine.ip_address or 'N/A' }}</strong></div>
+                    <div class="stat-box"><span class="stat-label">User</span><strong>{{ machine.current_user or 'N/A' }}</strong></div>
+                    <div class="stat-box"><span class="stat-label">CPU</span><strong>{{ "%.1f"|format(machine.cpu_percent or 0) }}%</strong></div>
+                    <div class="stat-box"><span class="stat-label">RAM</span><strong>{{ "%.1f"|format(machine.ram_percent or 0) }}%</strong></div>
+                    <div class="stat-box"><span class="stat-label">Net Up</span><strong>{{ format_rate_bps(machine.net_up_bps) }}</strong></div>
+                    <div class="stat-box"><span class="stat-label">Net Down</span><strong>{{ format_rate_bps(machine.net_down_bps) }}</strong></div>
+                    <div class="stat-box"><span class="stat-label">GPU</span><strong>{{ "%.1f"|format(machine.gpu_load or 0) ~ '%' if machine.gpu_name else 'N/A' }}</strong></div>
+                    <div class="stat-box"><span class="stat-label">Temp</span><strong>{{ "%.1f"|format(machine.cpu_temp or 0) if machine.cpu_temp is not none else 'N/A' }}</strong></div>
+                </div>
+                <div class="card-footer">
+                    <span>{{ machine.location or 'No location set' }}</span>
+                    <span>Last seen {{ format_last_seen(machine.last_seen) }}</span>
+                </div>
+            </article>
+        </a>
+        {% else %}
+        <div class="empty-state"><h3>No machines have checked in yet.</h3><p>Start the agent and refresh this page.</p></div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

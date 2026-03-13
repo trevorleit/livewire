@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Remote Actions</h2>
+    <p>Create commands, approve them, and let the agent execute them safely.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><h3>Queue Command</h3><p>New commands start in pending approval.</p></div>
+    <form method="post">
+      <input type="hidden" name="form_type" value="create_command">
+      <div class="settings-grid">
+        <label class="field"><span>Machine</span>
+          <select name="machine_id">
+            {% for machine in machines %}
+            <option value="{{ machine.id }}">{{ machine.display_name or machine.hostname }}{% if not machine.is_online %} (offline){% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field"><span>Action</span>
+          <select name="action_type">
+            <option value="restart_service">Restart service</option>
+            <option value="stop_process">Stop process by PID</option>
+            <option value="reboot_machine">Reboot machine</option>
+          </select>
+        </label>
+        <label class="field"><span>Service name</span><input type="text" name="service_name" placeholder="Apache2.4"></label>
+        <label class="field"><span>PID</span><input type="number" name="pid" placeholder="1234"></label>
+        <label class="field"><span>Reboot delay (seconds)</span><input type="number" name="delay_seconds" value="5"></label>
+      </div>
+      <div class="form-actions"><button type="submit" class="button-primary">Queue Command</button></div>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header"><h3>Command Queue</h3><p>Approve or cancel commands before they execute.</p></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Machine</th><th>Action</th><th>Status</th><th>Requested</th><th>Result</th><th>Controls</th></tr></thead>
+      <tbody>
+        {% for row in commands %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.machine_label }}</td>
+          <td>{{ row.action_type }}</td>
+          <td>
+            <span class="status-pill {{ 'pill-warning' if row.status in ['pending_approval','sent'] else ('pill-online' if row.status == 'completed' else ('pill-muted' if row.status == 'approved' else 'pill-offline')) }}">
+              {{ row.status }}
+            </span>
+          </td>
+          <td>{{ row.created_at }}</td>
+          <td><div class="result-box">{{ row.result_text or '—' }}</div></td>
+          <td>
+            {% if row.status == 'pending_approval' %}
+            <form method="post" style="display:inline-block">
+              <input type="hidden" name="form_type" value="approve_command">
+              <input type="hidden" name="command_id" value="{{ row.id }}">
+              <button type="submit" class="button-primary">Approve</button>
+            </form>
+            {% endif %}
+            {% if row.status in ['pending_approval', 'approved', 'sent'] %}
+            <form method="post" style="display:inline-block">
+              <input type="hidden" name="form_type" value="cancel_command">
+              <input type="hidden" name="command_id" value="{{ row.id }}">
+              <button type="submit" class="button-secondary">Cancel</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">No commands yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

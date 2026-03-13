@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Inventory</h2>
+    <p>Label your machines and add internal notes before scaling LiveWire to the rest of the network.</p>
+  </div>
+  <div class="inventory-list">
+    {% for machine in machines %}
+    <form method="post" class="inventory-card">
+      <input type="hidden" name="machine_id" value="{{ machine.id }}">
+      <div class="inventory-title">
+        <h3>{{ machine.display_name or machine.hostname }}</h3>
+        <div class="muted">{{ machine.hostname }} • {{ machine.ip_address or 'No IP' }}</div>
+      </div>
+      <div class="settings-grid">
+        <label class="field"><span>Display name</span><input type="text" name="display_name" value="{{ machine.display_name or '' }}"></label>
+        <label class="field"><span>Role</span><input type="text" name="machine_role" value="{{ machine.machine_role or '' }}"></label>
+        <label class="field"><span>Location</span><input type="text" name="location" value="{{ machine.location or '' }}"></label>
+        <label class="field field-wide"><span>Notes</span><input type="text" name="notes" value="{{ machine.notes or '' }}"></label>
+      </div>
+      <div class="form-actions"><button type="submit" class="button-primary">Save Machine</button></div>
+    </form>
+    {% else %}
+    <div class="empty-state"><h3>No machines found.</h3><p>Wait for the agent to check in.</p></div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

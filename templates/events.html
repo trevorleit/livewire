@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+    <div class="panel-header"><h2>Events</h2><p>Machine and agent event log history.</p></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Recorded</th><th>Machine</th><th>Severity</th><th>Type</th><th>Message</th><th>Source</th></tr></thead>
+            <tbody>
+                {% for row in event_rows %}
+                <tr>
+                    <td>{{ row.recorded_at }}</td>
+                    <td>{{ row.machine_label }}</td>
+                    <td>{{ row.severity }}</td>
+                    <td>{{ row.event_type }}</td>
+                    <td>{{ row.message }}</td>
+                    <td>{{ row.source }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6">No events recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+    <div class="panel-header"><h2>Alerts</h2><p>Recent warning and critical conditions across LiveWire.</p></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Status</th><th>Severity</th><th>Machine</th><th>Type</th><th>Message</th><th>Recorded</th><th>Resolved</th></tr></thead>
+            <tbody>
+                {% for row in alert_rows %}
+                <tr>
+                    <td>{% if row.is_resolved %}<span class="status-pill pill-muted">Resolved</span>{% else %}<span class="status-pill pill-warning">Open</span>{% endif %}</td>
+                    <td>{% if row.severity == 'critical' %}<span class="status-pill pill-offline">Critical</span>{% else %}<span class="status-pill pill-warning">Warning</span>{% endif %}</td>
+                    <td>{{ row.machine_label }}</td>
+                    <td>{{ row.alert_type }}</td>
+                    <td>{{ row.message }}</td>
+                    <td>{{ row.recorded_at }}</td>
+                    <td>{{ row.resolved_at or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7">No alerts recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

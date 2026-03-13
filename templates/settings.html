@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Settings</h2>
+    <p>Adjust thresholds and UI behavior for your local LiveWire instance.</p>
+  </div>
+  <form method="post" class="settings-form">
+    <div class="settings-grid">
+      <label class="field"><span>CPU alert threshold (%)</span><input type="number" step="0.1" name="cpu_alert_threshold" value="{{ settings_map.get('cpu_alert_threshold', '90') }}"></label>
+      <label class="field"><span>RAM alert threshold (%)</span><input type="number" step="0.1" name="ram_alert_threshold" value="{{ settings_map.get('ram_alert_threshold', '90') }}"></label>
+      <label class="field"><span>Disk alert threshold (%)</span><input type="number" step="0.1" name="disk_alert_threshold" value="{{ settings_map.get('disk_alert_threshold', '90') }}"></label>
+      <label class="field"><span>Temperature alert threshold (°C)</span><input type="number" step="0.1" name="temp_alert_threshold" value="{{ settings_map.get('temp_alert_threshold', '85') }}"></label>
+      <label class="field"><span>Auto refresh (seconds)</span><input type="number" name="refresh_seconds" value="{{ settings_map.get('refresh_seconds', '10') }}"></label>
+      <label class="field"><span>Offline after (seconds)</span><input type="number" name="offline_after_seconds" value="{{ settings_map.get('offline_after_seconds', '90') }}"></label>
+      <label class="field"><span>Top processes shown</span><input type="number" name="max_top_processes" value="{{ settings_map.get('max_top_processes', '8') }}"></label>
+    </div>
+    <div class="form-actions"><button type="submit" class="button-primary">Save Settings</button></div>
+  </form>
+</section>
+{% endblock %}
