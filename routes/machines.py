@@ -3,12 +3,14 @@ from database import get_db
 from services.alert_engine import update_machine_statuses
 from services.query_service import get_machine_with_latest_snapshot
 from services.runtime_settings import get_runtime_settings
+from services.scheduler_service import run_due_jobs
 from config import MAX_RECENT_SNAPSHOTS
 
 machines_bp = Blueprint("machines", __name__)
 
 @machines_bp.route("/machine/<int:machine_id>")
 def machine_detail(machine_id):
+    run_due_jobs(limit=25)
     update_machine_statuses()
     runtime_settings = get_runtime_settings()
     conn = get_db()

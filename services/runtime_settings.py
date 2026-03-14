@@ -9,6 +9,7 @@ from config import (
     TEMP_ALERT_THRESHOLD as DEFAULT_TEMP_ALERT_THRESHOLD,
 )
 
+
 def fetch_settings():
     conn = get_db()
     cur = conn.cursor()
@@ -20,17 +21,25 @@ def fetch_settings():
         settings[row["setting_key"]] = row["setting_value"]
     return settings
 
+
 def get_int_setting(settings, key, fallback):
     try:
         return int(float(settings.get(key, fallback)))
     except Exception:
         return fallback
 
+
 def get_float_setting(settings, key, fallback):
     try:
         return float(settings.get(key, fallback))
     except Exception:
         return fallback
+
+
+def get_bool_setting(settings, key, fallback=False):
+    raw = str(settings.get(key, "1" if fallback else "0")).strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
 
 def get_runtime_settings():
     settings = fetch_settings()
@@ -42,4 +51,12 @@ def get_runtime_settings():
         "refresh_seconds": get_int_setting(settings, "refresh_seconds", DEFAULT_REFRESH_SECONDS),
         "offline_after_seconds": get_int_setting(settings, "offline_after_seconds", DEFAULT_OFFLINE_AFTER_SECONDS),
         "max_top_processes": get_int_setting(settings, "max_top_processes", DEFAULT_MAX_TOP_PROCESSES),
+        "discord_webhook_url": settings.get("discord_webhook_url", "").strip(),
+        "notification_email_to": settings.get("notification_email_to", "").strip(),
+        "smtp_host": settings.get("smtp_host", "").strip(),
+        "smtp_port": get_int_setting(settings, "smtp_port", 587),
+        "smtp_username": settings.get("smtp_username", "").strip(),
+        "smtp_password": settings.get("smtp_password", ""),
+        "smtp_use_tls": get_bool_setting(settings, "smtp_use_tls", True),
+        "smtp_from": settings.get("smtp_from", "livewire@localhost").strip() or "livewire@localhost",
     }

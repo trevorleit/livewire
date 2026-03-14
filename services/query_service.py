@@ -22,7 +22,13 @@ def get_machine_with_latest_snapshot(cur, machine_id):
                s.gpu_load,
                s.gpu_mem_used_mb,
                s.gpu_mem_total_mb,
-               s.gpu_temp
+               s.gpu_temp,
+               (
+                   SELECT GROUP_CONCAT(g.group_name, ', ')
+                   FROM machine_group_members gm
+                   JOIN machine_groups g ON g.id = gm.group_id
+                   WHERE gm.machine_id = m.id
+               ) AS group_names
         FROM machines m
         LEFT JOIN snapshots s ON s.id = (
             SELECT id FROM snapshots WHERE machine_id = m.id ORDER BY recorded_at DESC, id DESC LIMIT 1
@@ -30,6 +36,7 @@ def get_machine_with_latest_snapshot(cur, machine_id):
         WHERE m.id = ?
     """, (machine_id,))
     return cur.fetchone()
+
 
 def get_dashboard_machines(cur):
     cur.execute("""
@@ -47,7 +54,13 @@ def get_dashboard_machines(cur):
                s.gpu_load,
                (
                    SELECT COUNT(*) FROM alerts a WHERE a.machine_id = m.id AND a.is_resolved = 0
-               ) AS open_alert_count
+               ) AS open_alert_count,
+               (
+                   SELECT GROUP_CONCAT(g.group_name, ', ')
+                   FROM machine_group_members gm
+                   JOIN machine_groups g ON g.id = gm.group_id
+                   WHERE gm.machine_id = m.id
+               ) AS group_names
         FROM machines m
         LEFT JOIN snapshots s ON s.id = (
             SELECT id FROM snapshots WHERE machine_id = m.id ORDER BY recorded_at DESC, id DESC LIMIT 1
@@ -55,6 +68,7 @@ def get_dashboard_machines(cur):
         ORDER BY COALESCE(m.display_name, m.hostname) ASC
     """)
     return cur.fetchall()
+
 
 def get_open_alert_count(cur):
     cur.execute("SELECT COUNT(*) AS total FROM alerts WHERE is_resolved = 0")

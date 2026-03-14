@@ -38,7 +38,7 @@
   <div class="panel-header"><h3>Command Queue</h3><p>Approve or cancel commands before they execute.</p></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>ID</th><th>Machine</th><th>Action</th><th>Status</th><th>Requested</th><th>Result</th><th>Controls</th></tr></thead>
+      <thead><tr><th>ID</th><th>Machine</th><th>Action</th><th>Status</th><th>Source</th><th>Requested</th><th>Result</th><th>Controls</th></tr></thead>
       <tbody>
         {% for row in commands %}
         <tr>
@@ -50,6 +50,7 @@
               {{ row.status }}
             </span>
           </td>
+          <td>{{ row.source or 'dashboard' }}{% if row.trigger_alert_id %} / alert #{{ row.trigger_alert_id }}{% endif %}</td>
           <td>{{ row.created_at }}</td>
           <td><div class="result-box">{{ row.result_text or '—' }}</div></td>
           <td>
@@ -70,7 +71,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7">No commands yet.</td></tr>
+        <tr><td colspan="8">No commands yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>

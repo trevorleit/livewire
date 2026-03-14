@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h2>Automation</h2>
+    <p>Create machine groups and schedule recurring jobs as LiveWire expands across your lab.</p>
+  </div>
+  <div class="two-col-panels">
+    <article class="panel">
+      <div class="panel-header"><h3>Create Group</h3><p>Organize machines by role, room, or purpose.</p></div>
+      <form method="post">
+        <input type="hidden" name="form_type" value="create_group">
+        <div class="settings-grid">
+          <label class="field"><span>Group name</span><input type="text" name="group_name" placeholder="GPU Nodes"></label>
+          <label class="field"><span>Description</span><input type="text" name="description" placeholder="Rendering and AI workstations"></label>
+          <label class="field"><span>Color hex</span><input type="text" name="color_hex" value="#00cc66"></label>
+        </div>
+        <div class="form-actions"><button type="submit" class="button-primary">Create Group</button></div>
+      </form>
+    </article>
+    <article class="panel">
+      <div class="panel-header"><h3>Groups</h3><p>Current machine groups.</p></div>
+      {% if groups %}
+        {% for g in groups %}
+          <div class="alert-item">
+            <div class="alert-message"><strong>{{ g.group_name }}</strong></div>
+            {% if g.description %}<div class="alert-meta">{{ g.description }}</div>{% endif %}
+            <div style="margin-top:10px;">
+              {% for m in g.members %}<span class="list-chip">{{ m.display_name or m.hostname }}</span>{% else %}<span class="muted">No members yet.</span>{% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}<div class="empty-state"><p>No groups created yet.</p></div>{% endif %}
+    </article>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header"><h3>Scheduled Jobs</h3><p>Recurring tasks will show here as you add scheduler rules.</p></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Job</th><th>Action</th><th>Next Run</th><th>Last Run</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for j in jobs %}
+        <tr>
+          <td>{{ j.job_name }}</td>
+          <td>{{ j.action_type }}</td>
+          <td>{{ j.next_run_at or '—' }}</td>
+          <td>{{ j.last_run_at or '—' }}</td>
+          <td>{% if j.is_enabled %}<span class="status-pill pill-online">Enabled</span>{% else %}<span class="status-pill pill-muted">Disabled</span>{% endif %}</td>
+        </tr>
+        {% else %}<tr><td colspan="5">No scheduled jobs yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

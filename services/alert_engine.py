@@ -1,24 +1,72 @@
 from datetime import datetime, timezone
+
 from database import get_db
+from services.notification_service import handle_alert_notification
+from services.remediation_service import run_remediation_rules
 from services.runtime_settings import get_runtime_settings
 
-def create_alert_if_missing(cur, machine_id, alert_type, severity, message):
+
+def create_alert_if_missing(cur, machine_id, alert_type, severity, message, hostname=None):
     cur.execute(
         "SELECT id FROM alerts WHERE machine_id = ? AND alert_type = ? AND is_resolved = 0 ORDER BY id DESC LIMIT 1",
         (machine_id, alert_type),
     )
     existing = cur.fetchone()
-    if not existing:
-        cur.execute(
-            "INSERT INTO alerts (machine_id, alert_type, severity, message) VALUES (?, ?, ?, ?)",
-            (machine_id, alert_type, severity, message),
-        )
+    if existing:
+        return existing["id"]
 
-def resolve_alert(cur, machine_id, alert_type):
+    cur.execute(
+        "INSERT INTO alerts (machine_id, alert_type, severity, message) VALUES (?, ?, ?, ?)",
+        (machine_id, alert_type, severity, message),
+    )
+    alert_id = cur.lastrowid
+    handle_alert_notification(
+        cur,
+        alert_id=alert_id,
+        machine_id=machine_id,
+        hostname=hostname or f"machine-{machine_id}",
+        alert_type=alert_type,
+        severity=severity,
+        message=message,
+        event_type="opened",
+    )
+    run_remediation_rules(
+        cur,
+        alert_id=alert_id,
+        machine_id=machine_id,
+        hostname=hostname or f"machine-{machine_id}",
+        alert_type=alert_type,
+        severity=severity,
+        message=message,
+    )
+    return alert_id
+
+
+def resolve_alert(cur, machine_id, alert_type, hostname=None):
+    cur.execute(
+        "SELECT id, severity, message FROM alerts WHERE machine_id = ? AND alert_type = ? AND is_resolved = 0",
+        (machine_id, alert_type),
+    )
+    rows = cur.fetchall()
+    if not rows:
+        return
+
     cur.execute(
         "UPDATE alerts SET is_resolved = 1, resolved_at = CURRENT_TIMESTAMP WHERE machine_id = ? AND alert_type = ? AND is_resolved = 0",
         (machine_id, alert_type),
     )
+    for row in rows:
+        handle_alert_notification(
+            cur,
+            alert_id=row["id"],
+            machine_id=machine_id,
+            hostname=hostname or f"machine-{machine_id}",
+            alert_type=alert_type,
+            severity=row["severity"],
+            message=row["message"],
+            event_type="resolved",
+        )
+
 
 def log_event(cur, machine_id, event_type, severity, message, source="system", extra_json=None):
     cur.execute(
@@ -26,21 +74,22 @@ def log_event(cur, machine_id, event_type, severity, message, source="system", e
         (machine_id, event_type, severity, message, source, extra_json),
     )
 
+
 def evaluate_threshold_alerts(cur, machine_id, hostname, cpu_percent, ram_percent, cpu_temp, drives, runtime_settings):
     if (cpu_percent or 0) >= runtime_settings["cpu_alert_threshold"]:
-        create_alert_if_missing(cur, machine_id, "cpu_high", "warning", f"{hostname} CPU is at {round(cpu_percent or 0, 1)}%")
+        create_alert_if_missing(cur, machine_id, "cpu_high", "warning", f"{hostname} CPU is at {round(cpu_percent or 0, 1)}%", hostname)
     else:
-        resolve_alert(cur, machine_id, "cpu_high")
+        resolve_alert(cur, machine_id, "cpu_high", hostname)
 
     if (ram_percent or 0) >= runtime_settings["ram_alert_threshold"]:
-        create_alert_if_missing(cur, machine_id, "ram_high", "warning", f"{hostname} RAM is at {round(ram_percent or 0, 1)}%")
+        create_alert_if_missing(cur, machine_id, "ram_high", "warning", f"{hostname} RAM is at {round(ram_percent or 0, 1)}%", hostname)
     else:
-        resolve_alert(cur, machine_id, "ram_high")
+        resolve_alert(cur, machine_id, "ram_high", hostname)
 
     if cpu_temp is not None and (cpu_temp or 0) >= runtime_settings["temp_alert_threshold"]:
-        create_alert_if_missing(cur, machine_id, "temp_high", "warning", f"{hostname} CPU temperature is {round(cpu_temp or 0, 1)}°C")
+        create_alert_if_missing(cur, machine_id, "temp_high", "warning", f"{hostname} CPU temperature is {round(cpu_temp or 0, 1)}°C", hostname)
     else:
-        resolve_alert(cur, machine_id, "temp_high")
+        resolve_alert(cur, machine_id, "temp_high", hostname)
 
     any_disk_alert = False
     for drive in drives:
@@ -48,20 +97,25 @@ def evaluate_threshold_alerts(cur, machine_id, hostname, cpu_percent, ram_percen
         alert_type = f"disk_high::{drive_label}"
         if (drive.get("percent_used") or 0) >= runtime_settings["disk_alert_threshold"]:
             any_disk_alert = True
-            create_alert_if_missing(cur, machine_id, alert_type, "warning", f"{hostname} {drive_label} is at {round(drive.get('percent_used') or 0, 1)}% used")
+            create_alert_if_missing(cur, machine_id, alert_type, "warning", f"{hostname} {drive_label} is at {round(drive.get('percent_used') or 0, 1)}% used", hostname)
         else:
-            resolve_alert(cur, machine_id, alert_type)
+            resolve_alert(cur, machine_id, alert_type, hostname)
 
     if not any_disk_alert:
-        cur.execute("UPDATE alerts SET is_resolved = 1, resolved_at = CURRENT_TIMESTAMP WHERE machine_id = ? AND alert_type LIKE 'disk_high::%' AND is_resolved = 0", (machine_id,))
+        cur.execute("SELECT DISTINCT alert_type FROM alerts WHERE machine_id = ? AND alert_type LIKE 'disk_high::%' AND is_resolved = 0", (machine_id,))
+        active_disk_alerts = cur.fetchall()
+        for row in active_disk_alerts:
+            resolve_alert(cur, machine_id, row["alert_type"], hostname)
+
 
 def evaluate_service_alerts(cur, machine_id, hostname, services):
     watched = [svc for svc in services if str(svc.get("status", "")).lower() != "running"]
     if watched:
         names = ", ".join([(svc.get("display_name") or svc.get("service_name") or "service") for svc in watched[:3]])
-        create_alert_if_missing(cur, machine_id, "service_down", "warning", f"{hostname} has stopped services: {names}")
+        create_alert_if_missing(cur, machine_id, "service_down", "warning", f"{hostname} has stopped services: {names}", hostname)
     else:
-        resolve_alert(cur, machine_id, "service_down")
+        resolve_alert(cur, machine_id, "service_down", hostname)
+
 
 def update_machine_statuses():
     runtime_settings = get_runtime_settings()
@@ -93,9 +147,9 @@ def update_machine_statuses():
         cur.execute("UPDATE machines SET is_online = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (is_online, row["id"]))
 
         if is_online == 0:
-            create_alert_if_missing(cur, row["id"], "machine_offline", "critical", f"{row['hostname']} is offline")
+            create_alert_if_missing(cur, row["id"], "machine_offline", "critical", f"{row['hostname']} is offline", row["hostname"])
         else:
-            resolve_alert(cur, row["id"], "machine_offline")
+            resolve_alert(cur, row["id"], "machine_offline", row["hostname"])
 
     conn.commit()
     conn.close()

@@ -3,7 +3,7 @@
 <section class="panel">
   <div class="panel-header">
     <h2>Settings</h2>
-    <p>Adjust thresholds and UI behavior for your local LiveWire instance.</p>
+    <p>Adjust thresholds, refresh behavior, and notification delivery for LiveWire.</p>
   </div>
   <form method="post" class="settings-form">
     <div class="settings-grid">
@@ -14,8 +14,19 @@
       <label class="field"><span>Auto refresh (seconds)</span><input type="number" name="refresh_seconds" value="{{ settings_map.get('refresh_seconds', '10') }}"></label>
       <label class="field"><span>Offline after (seconds)</span><input type="number" name="offline_after_seconds" value="{{ settings_map.get('offline_after_seconds', '90') }}"></label>
       <label class="field"><span>Top processes shown</span><input type="number" name="max_top_processes" value="{{ settings_map.get('max_top_processes', '8') }}"></label>
+      <label class="field field-wide"><span>Discord webhook URL</span><input type="text" name="discord_webhook_url" value="{{ settings_map.get('discord_webhook_url', '') }}" placeholder="https://discord.com/api/webhooks/..." autocomplete="off"></label>
+      <label class="field field-wide"><span>Notification email recipients</span><input type="text" name="notification_email_to" value="{{ settings_map.get('notification_email_to', '') }}" placeholder="ops@example.com, alerts@example.com"></label>
+      <label class="field"><span>SMTP host</span><input type="text" name="smtp_host" value="{{ settings_map.get('smtp_host', '') }}"></label>
+      <label class="field"><span>SMTP port</span><input type="number" name="smtp_port" value="{{ settings_map.get('smtp_port', '587') }}"></label>
+      <label class="field"><span>SMTP username</span><input type="text" name="smtp_username" value="{{ settings_map.get('smtp_username', '') }}"></label>
+      <label class="field"><span>SMTP password</span><input type="password" name="smtp_password" value="{{ settings_map.get('smtp_password', '') }}" autocomplete="new-password"></label>
+      <label class="field"><span>From address</span><input type="text" name="smtp_from" value="{{ settings_map.get('smtp_from', 'livewire@localhost') }}"></label>
+      <label class="checkbox-field"><input type="checkbox" name="smtp_use_tls" {% if settings_map.get('smtp_use_tls', '1') in ['1', 'true', 'True', 'yes', 'on'] %}checked{% endif %}> <span>Use TLS for SMTP</span></label>
     </div>
-    <div class="form-actions"><button type="submit" class="button-primary">Save Settings</button></div>
+    <div class="form-actions">
+      <button type="submit" name="form_action" value="save" class="button-primary">Save Settings</button>
+      <button type="submit" name="form_action" value="save_and_test" class="button-secondary">Save + Send Test Notification</button>
+    </div>
   </form>
 </section>
 {% endblock %}

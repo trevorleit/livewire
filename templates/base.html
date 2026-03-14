@@ -8,6 +8,14 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='phase75_actions.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      window.livewireAccent = "#00cc66";
+      if (window.Chart) {
+        Chart.defaults.color = "#9fb5ca";
+        Chart.defaults.borderColor = "rgba(255,255,255,0.08)";
+        Chart.defaults.font.family = "Inter, Arial, Helvetica, sans-serif";
+      }
+    </script>
 </head>
 <body>
     <header class="site-header">
@@ -19,8 +27,10 @@
             <nav class="header-nav">
                 <a href="{{ url_for('dashboard.index') }}">Dashboard</a>
                 <a href="{{ url_for('alerts.alerts') }}">Alerts</a>
+                <a href="{{ url_for('response_center.response_center') }}">Response Center</a>
                 <a href="{{ url_for('events.events') }}">Events</a>
                 <a href="{{ url_for('actions.actions') }}">Actions</a>
+                <a href="{{ url_for('automation.automation') }}">Automation</a>
                 <a href="{{ url_for('inventory.inventory') }}">Inventory</a>
                 <a href="{{ url_for('settings.settings') }}">Settings</a>
             </nav>

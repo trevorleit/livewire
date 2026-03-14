@@ -245,19 +245,30 @@ const ramData = {{ ram_data|tojson }};
 const tempData = {{ temp_data|tojson }};
 const upData = {{ up_data|tojson }};
 const downData = {{ down_data|tojson }};
+const accent = window.livewireAccent || '#00cc66';
+const accentSoft = 'rgba(0, 204, 102, 0.18)';
+const blueLine = '#60a5fa';
 function makeLineChart(canvasId, datasets, maxVal=null) {
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
-  const options = { responsive: true, maintainAspectRatio: false };
-  if (maxVal !== null) options.scales = { y: { min: 0, max: maxVal } };
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { labels: { color: '#9fb5ca' } } },
+    scales: {
+      x: { ticks: { color: '#9fb5ca' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+      y: { ticks: { color: '#9fb5ca' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+    }
+  };
+  if (maxVal !== null) options.scales.y.min = 0, options.scales.y.max = maxVal;
   new Chart(ctx, { type: 'line', data: { labels: labels, datasets: datasets }, options: options });
 }
-makeLineChart('cpuChart', [{ label: 'CPU %', data: cpuData, tension: 0.25, fill: false }], 100);
-makeLineChart('ramChart', [{ label: 'RAM %', data: ramData, tension: 0.25, fill: false }], 100);
-makeLineChart('tempChart', [{ label: 'CPU Temp °C', data: tempData, tension: 0.25, fill: false }], 120);
+makeLineChart('cpuChart', [{ label: 'CPU %', data: cpuData, tension: 0.25, fill: true, borderColor: accent, backgroundColor: accentSoft }], 100);
+makeLineChart('ramChart', [{ label: 'RAM %', data: ramData, tension: 0.25, fill: true, borderColor: accent, backgroundColor: accentSoft }], 100);
+makeLineChart('tempChart', [{ label: 'CPU Temp °C', data: tempData, tension: 0.25, fill: true, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.16)' }], 120);
 makeLineChart('netChart', [
-  { label: 'Up B/s', data: upData, tension: 0.25, fill: false },
-  { label: 'Down B/s', data: downData, tension: 0.25, fill: false }
+  { label: 'Up B/s', data: upData, tension: 0.25, fill: true, borderColor: accent, backgroundColor: accentSoft },
+  { label: 'Down B/s', data: downData, tension: 0.25, fill: true, borderColor: blueLine, backgroundColor: 'rgba(96,165,250,0.14)' }
 ]);
 </script>
 {% endblock %}

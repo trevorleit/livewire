@@ -3,6 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for
 from database import get_db
 from services.command_center import create_command, approve_command, cancel_command
 from services.alert_engine import update_machine_statuses
+from services.scheduler_service import run_due_jobs
 
 actions_bp = Blueprint("actions", __name__)
 
@@ -39,6 +40,7 @@ def actions():
 
         return redirect(url_for("actions.actions"))
 
+    run_due_jobs(limit=50)
     update_machine_statuses()
     conn = get_db()
     cur = conn.cursor()
@@ -48,9 +50,10 @@ def actions():
 
     cur.execute(
         """
-        SELECT rc.*, COALESCE(m.display_name, m.hostname) AS machine_label
+        SELECT rc.*, COALESCE(m.display_name, m.hostname) AS machine_label, sj.job_name AS scheduled_job_name
         FROM remote_commands rc
         JOIN machines m ON m.id = rc.machine_id
+        LEFT JOIN scheduled_jobs sj ON sj.id = rc.scheduled_job_id
         ORDER BY rc.created_at DESC, rc.id DESC
         LIMIT 300
         """
