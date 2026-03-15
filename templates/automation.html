@@ -140,25 +140,29 @@
 
       <label class="field">
         <span>Target type</span>
-        <select name="target_type" required>
+        <select name="target_type" id="target_type" required>
           <option value="machine">Machine</option>
           <option value="group">Group</option>
         </select>
       </label>
 
-      <label class="field">
-        <span>Target</span>
-        <select name="target_id" required>
-          <optgroup label="Machines">
-            {% for machine in machines %}
-              <option value="{{ machine.id }}">Machine · {{ machine.display_name or machine.hostname }}</option>
-            {% endfor %}
-          </optgroup>
-          <optgroup label="Groups">
-            {% for g in groups %}
-              <option value="{{ g.id }}">Group · {{ g.group_name }}</option>
-            {% endfor %}
-          </optgroup>
+      <label class="field target-field" id="machine_target_field">
+        <span>Machine Target</span>
+        <select name="machine_target_id">
+          <option value="">Select a machine</option>
+          {% for machine in machines %}
+            <option value="{{ machine.id }}">{{ machine.display_name or machine.hostname }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="field target-field" id="group_target_field" style="display:none;">
+        <span>Group Target</span>
+        <select name="group_target_id">
+          <option value="">Select a group</option>
+          {% for g in groups %}
+            <option value="{{ g.id }}">{{ g.group_name }}</option>
+          {% endfor %}
         </select>
       </label>
 
@@ -203,7 +207,7 @@
     </div>
 
     <div class="helper-text" style="margin-top:10px;">
-      Choose a target type first, then select the matching target from the list. For now, both machines and groups are shown in the target dropdown.
+      Pick a target type first. The matching target selector will appear automatically.
     </div>
 
     <div class="form-actions">
@@ -310,7 +314,7 @@
           <tr>
             <td>{{ row.job_name if row.job_name is defined else row.job_id }}</td>
             <td>{{ row.status }}</td>
-            <td>{{ row.summary_text }}</td>
+            <td>{{ row.summary_text or "—" }}</td>
             <td>{{ row.created_at }}</td>
           </tr>
         {% else %}
@@ -322,5 +326,30 @@
     </table>
   </div>
 </section>
+
+<script>
+(function () {
+  const targetType = document.getElementById("target_type");
+  const machineField = document.getElementById("machine_target_field");
+  const groupField = document.getElementById("group_target_field");
+
+  if (!targetType || !machineField || !groupField) return;
+
+  function syncTargetFields() {
+    const value = targetType.value;
+
+    if (value === "group") {
+      machineField.style.display = "none";
+      groupField.style.display = "";
+    } else {
+      machineField.style.display = "";
+      groupField.style.display = "none";
+    }
+  }
+
+  targetType.addEventListener("change", syncTargetFields);
+  syncTargetFields();
+})();
+</script>
 
 {% endblock %}

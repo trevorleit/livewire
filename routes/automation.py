@@ -85,12 +85,20 @@ def automation():
                 description = request.form.get("description", "").strip()
                 action_type = request.form.get("action_type", "").strip()
                 target_type = request.form.get("target_type", "machine").strip()
-                target_id = _safe_int(request.form.get("target_id"))
+
+                machine_target_id = _safe_int(request.form.get("machine_target_id"))
+                group_target_id = _safe_int(request.form.get("group_target_id"))
                 interval_minutes = _safe_int(request.form.get("interval_minutes", "60"), 60)
 
                 service_name = request.form.get("service_name", "").strip()
                 pid = request.form.get("pid", "").strip()
                 delay_seconds = request.form.get("delay_seconds", "5").strip()
+
+                target_id = None
+                if target_type == "machine":
+                    target_id = machine_target_id
+                elif target_type == "group":
+                    target_id = group_target_id
 
                 if not job_name:
                     flash("Job name is required.", "warning")
@@ -102,7 +110,7 @@ def automation():
                     flash("Target type must be machine or group.", "warning")
 
                 elif not target_id:
-                    flash("A valid target is required.", "warning")
+                    flash("Please select a valid target for the chosen target type.", "warning")
 
                 elif interval_minutes is None or interval_minutes < 1:
                     flash("Interval minutes must be 1 or greater.", "warning")
