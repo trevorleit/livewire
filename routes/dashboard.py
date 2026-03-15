@@ -2,7 +2,7 @@ from flask import Blueprint, render_template
 from database import get_db
 from services.alert_engine import update_machine_statuses
 from services.query_service import get_dashboard_machines, get_open_alert_count
-from services.scheduler_service import get_scheduler_overview, run_due_jobs
+from services.scheduler_service import get_scheduler_overview
 
 
 dashboard_bp = Blueprint("dashboard", __name__)
@@ -10,7 +10,6 @@ dashboard_bp = Blueprint("dashboard", __name__)
 
 @dashboard_bp.route("/")
 def index():
-    run_due_jobs(limit=50)
     update_machine_statuses()
     conn = get_db()
     cur = conn.cursor()
