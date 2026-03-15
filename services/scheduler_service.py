@@ -276,11 +276,16 @@ def get_scheduler_overview(cur=None):
         "enabled_jobs": 0,
         "disabled_jobs": 0,
         "due_now": 0,
+        "total_groups": 0,
         "recent_runs": [],
         "jobs": [],
     }
 
     try:
+        cur.execute("SELECT COUNT(*) AS c FROM machine_groups")
+        row = cur.fetchone()
+        overview["total_groups"] = row["c"] if row else 0
+
         cur.execute("SELECT COUNT(*) AS c FROM scheduled_jobs WHERE enabled = 1")
         row = cur.fetchone()
         overview["enabled_jobs"] = row["c"] if row else 0
