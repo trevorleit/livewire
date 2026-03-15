@@ -311,11 +311,28 @@
       </thead>
       <tbody>
         {% for row in recent_runs %}
+          {% set run_status = (row.status or '')|lower %}
           <tr>
-            <td>{{ row.job_name if row.job_name is defined else row.job_id }}</td>
-            <td>{{ row.status }}</td>
-            <td>{{ row.summary_text or "—" }}</td>
-            <td>{{ row.created_at }}</td>
+            <td>
+              <strong>{{ row.job_name if row.job_name else ("Job #" ~ row.job_id) }}</strong>
+            </td>
+            <td class="status-cell">
+              {% if run_status in ["completed", "success", "queued"] %}
+                <span class="status-pill pill-success">{{ row.status }}</span>
+              {% elif run_status in ["skipped", "partial"] %}
+                <span class="status-pill pill-skipped">{{ row.status }}</span>
+              {% elif run_status in ["running", "in_progress"] %}
+                <span class="status-pill pill-running">{{ row.status }}</span>
+              {% elif run_status in ["failed", "error"] %}
+                <span class="status-pill pill-failed">{{ row.status }}</span>
+              {% else %}
+                <span class="status-pill pill-muted">{{ row.status or "unknown" }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="run-summary mono">{{ row.summary_text or "No summary recorded." }}</div>
+            </td>
+            <td>{{ row.created_at or "—" }}</td>
           </tr>
         {% else %}
           <tr>
