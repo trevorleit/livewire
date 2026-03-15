@@ -220,13 +220,30 @@
       <p>Latest scheduler and system activity.</p>
     </div>
 
-    <div class="alert-list compact-list">
+    <div class="activity-list compact-list">
       {% for row in recent_events %}
-      <div class="alert-item {{ row.severity }}">
-        <div class="alert-title">{{ row.event_type }}</div>
-        <div class="alert-message">{{ row.message }}</div>
-        <div class="alert-meta">{{ row.machine_label or 'System' }} • {{ row.recorded_at }}</div>
-      </div>
+        {% set sev = (row.severity or '')|lower %}
+        <div class="activity-item">
+          <div class="activity-top">
+            <div class="activity-title">{{ row.event_type or 'Event' }}</div>
+            {% if sev == 'critical' %}
+              <span class="status-pill pill-offline">Critical</span>
+            {% elif sev == 'warning' %}
+              <span class="status-pill pill-warning">Warning</span>
+            {% elif sev == 'info' %}
+              <span class="status-pill pill-info">Info</span>
+            {% else %}
+              <span class="status-pill pill-muted">{{ row.severity or 'Event' }}</span>
+            {% endif %}
+          </div>
+
+          <div class="activity-text">{{ row.message }}</div>
+
+          <div class="activity-meta">
+            <span>{{ row.machine_label or 'System' }}</span>
+            <span>{{ row.recorded_at }}</span>
+          </div>
+        </div>
       {% else %}
       <div class="empty-state">
         <p>No recent events yet.</p>
@@ -253,16 +270,29 @@
         </thead>
         <tbody>
           {% for row in recent_commands %}
-          <tr>
-            <td>{{ row.machine_label }}</td>
-            <td>{{ row.action_type }}</td>
-            <td>
-              <span class="status-pill {{ 'pill-warning' if row.status in ['pending_approval','sent'] else ('pill-online' if row.status == 'completed' else ('pill-muted' if row.status == 'approved' else 'pill-offline')) }}">
-                {{ row.status }}
-              </span>
-            </td>
-            <td>{{ row.requested_by or 'manual' }}</td>
-          </tr>
+            {% set action_label =
+              "Restart Service" if row.action_type == "restart_service"
+              else "Stop Process" if row.action_type == "stop_process"
+              else "Reboot Machine" if row.action_type == "reboot_machine"
+              else (row.action_type or "Unknown")
+            %}
+            {% set source_value = row.source or row.requested_by or 'manual' %}
+            <tr>
+              <td>{{ row.machine_label }}</td>
+              <td><span class="command-action">{{ action_label }}</span></td>
+              <td>
+                <span class="status-pill {{ 'pill-warning' if row.status in ['pending_approval','sent'] else ('pill-online' if row.status == 'completed' else ('pill-muted' if row.status == 'approved' else 'pill-offline')) }}">
+                  {{ row.status }}
+                </span>
+              </td>
+              <td>
+                {% if source_value in ['scheduler', 'automation'] %}
+                  <span class="source-badge automation">{{ source_value }}</span>
+                {% else %}
+                  <span class="source-badge manual">{{ source_value }}</span>
+                {% endif %}
+              </td>
+            </tr>
           {% else %}
           <tr>
             <td colspan="4">No commands yet.</td>
@@ -270,6 +300,10 @@
           {% endfor %}
         </tbody>
       </table>
+    </div>
+
+    <div class="table-note">
+      This panel helps verify whether commands were created manually or by automation during testing.
     </div>
   </div>
 </section>
