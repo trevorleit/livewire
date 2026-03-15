@@ -82,33 +82,78 @@
 
 <section class="panel">
   <div class="split-header panel-header">
-    <div><h3>Scheduled Jobs</h3><p>Recurring tasks with manual run and enable controls.</p></div>
-    <form method="post"><input type="hidden" name="form_type" value="tick_scheduler"><button class="button-secondary">Run Scheduler Tick</button></form>
+    <div>
+      <h3>Scheduled Jobs</h3>
+      <p>Recurring tasks with manual run and enable controls.</p>
+    </div>
+    <form method="post">
+      <input type="hidden" name="form_type" value="tick_scheduler">
+      <button class="button-secondary" type="submit">Run Scheduler Tick</button>
+    </form>
   </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Job</th><th>Target</th><th>Action</th><th>Every</th><th>Next Run</th><th>Last Run</th><th>Status</th><th>Controls</th></tr></thead>
-      <tbody>
-        {% for j in jobs %}
-        <tr>
-          <td><strong>{{ j.job_name }}</strong>{% if j.description %}<div class="muted">{{ j.description }}</div>{% endif %}</td>
-          <td>{{ j.target_type }} #{{ j.target_id }}</td>
-          <td>{{ j.action_type }}</td>
-          <td>{{ j.interval_minutes }} min</td>
-          <td>{{ j.next_run_at or '—' }}</td>
-          <td>{{ j.last_run_at or '—' }}</td>
-          <td>{% if j.enabled %}<span class="status-pill pill-online">Enabled</span>{% else %}<span class="status-pill pill-muted">Disabled</span>{% endif %}</td>
-          <td>
-            <div class="inline-actions">
-              <form method="post"><input type="hidden" name="form_type" value="run_job_now"><input type="hidden" name="job_id" value="{{ j.id }}"><button class="button-primary small-button">Run now</button></form>
-              <form method="post"><input type="hidden" name="form_type" value="toggle_job"><input type="hidden" name="job_id" value="{{ j.id }}"><input type="hidden" name="enabled" value="{{ 0 if j.enabled else 1 }}"><button class="button-secondary small-button">{{ 'Disable' if j.enabled else 'Enable' }}</button></form>
-            </div>
-          </td>
-        </tr>
-        {% else %}<tr><td colspan="8">No scheduled jobs yet.</td></tr>{% endfor %}
-      </tbody>
-    </table>
-  </div>
+
+  {% if jobs %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Target</th>
+            <th>Action</th>
+            <th>Interval</th>
+            <th>Next Run</th>
+            <th>Status</th>
+            <th>Controls</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for j in jobs %}
+          <tr>
+            <td>
+              <strong>{{ j.job_name or ("Job #" ~ j.id) }}</strong>
+              {% if j.description %}
+                <div class="alert-meta" style="margin-top:4px;">{{ j.description }}</div>
+              {% endif %}
+            </td>
+            <td>{{ j.target_label }}</td>
+            <td>{{ j.action_type }}</td>
+            <td>{{ j.interval_minutes }} min</td>
+            <td>{{ j.next_run_at or "—" }}</td>
+            <td>
+              {% if j.enabled %}
+                <span class="status-pill pill-online">Enabled</span>
+              {% else %}
+                <span class="status-pill pill-muted">Disabled</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="inline-actions">
+                <form method="post">
+                  <input type="hidden" name="form_type" value="run_job_now">
+                  <input type="hidden" name="job_id" value="{{ j.id }}">
+                  <button class="button-secondary small-button" type="submit">Run Now</button>
+                </form>
+
+                <form method="post">
+                  <input type="hidden" name="form_type" value="toggle_job">
+                  <input type="hidden" name="job_id" value="{{ j.id }}">
+                  <input type="hidden" name="enabled" value="{% if j.enabled %}0{% else %}1{% endif %}">
+                  <button class="button-secondary small-button" type="submit">
+                    {% if j.enabled %}Disable{% else %}Enable{% endif %}
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <p>No scheduled jobs created yet.</p>
+    </div>
+  {% endif %}
 </section>
 
 <section class="panel">

@@ -19,6 +19,24 @@ from services.scheduler_service import (
 automation_bp = Blueprint("automation", __name__)
 
 
+def _build_target_label(job, machine_map, group_map):
+    target_type = (job["target_type"] or "").strip()
+    target_id = job["target_id"]
+
+    if target_type == "machine":
+        machine_name = machine_map.get(target_id)
+        return f"Machine: {machine_name}" if machine_name else f"Machine #{target_id}"
+
+    if target_type == "group":
+        group_name = group_map.get(target_id)
+        return f"Group: {group_name}" if group_name else f"Group #{target_id}"
+
+    if target_type == "all":
+        return "All Machines"
+
+    return f"{target_type} #{target_id}"
+
+
 @automation_bp.route("/automation", methods=["GET", "POST"])
 def automation():
     if request.method == "POST":
@@ -88,8 +106,6 @@ def automation():
 
         return redirect(url_for("automation.automation"))
 
-    run_due_jobs(limit=50)
-
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -125,6 +141,22 @@ def automation():
         )
         recent_runs = cur.fetchall()
 
+        machine_map = {
+            row["id"]: (row["display_name"] or row["hostname"])
+            for row in machines
+        }
+
+        group_map = {
+            row["id"]: row["group_name"]
+            for row in groups
+        }
+
+        job_cards = []
+        for job in jobs:
+            job_data = dict(job)
+            job_data["target_label"] = _build_target_label(job, machine_map, group_map)
+            job_cards.append(job_data)
+
     finally:
         conn.close()
 
@@ -132,6 +164,6 @@ def automation():
         "automation.html",
         machines=machines,
         groups=groups,
-        jobs=jobs,
+        jobs=job_cards,
         recent_runs=recent_runs,
     )
