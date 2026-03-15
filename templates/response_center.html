@@ -3,7 +3,7 @@
 <section class="panel">
   <div class="panel-header">
     <h2>Response Center</h2>
-    <p>Define remediation rules and test notifications so LiveWire can move from monitoring to response.</p>
+    <p>Define remediation rules, reduce noisy service naming, and validate outbound notifications.</p>
   </div>
   <div class="two-col-panels">
     <article class="panel">
@@ -11,8 +11,9 @@
       <form method="post">
         <input type="hidden" name="form_type" value="create_rule">
         <div class="settings-grid">
-          <label class="field"><span>Rule name</span><input name="rule_name" placeholder="Restart Apache on service_down"></label>
+          <label class="field"><span>Rule name</span><input name="name" placeholder="Restart Apache on service_down"></label>
           <label class="field"><span>Alert type</span><input name="alert_type" placeholder="service_down"></label>
+          <label class="field"><span>Machine role</span><input name="machine_role" placeholder="web, db, workstation"></label>
           <label class="field"><span>Action type</span>
             <select name="action_type">
               <option value="restart_service">restart_service</option>
@@ -20,28 +21,30 @@
               <option value="reboot_machine">reboot_machine</option>
             </select>
           </label>
-          <label class="field"><span>Service name</span><input name="service_name" placeholder="Apache2.4"></label>
+          <label class="field"><span>Service name</span><input name="service_name" placeholder="Apache or MySQL"></label>
           <label class="field"><span>PID</span><input name="pid" placeholder="1234"></label>
           <label class="field"><span>Delay</span><input name="delay_seconds" placeholder="5"></label>
+          <label class="field"><span>Cooldown (minutes)</span><input name="cooldown_seconds" value="30"></label>
+          <label class="checkbox-field"><input type="checkbox" name="auto_approve"> Auto-approve created commands</label>
         </div>
         <div class="form-actions"><button class="button-primary">Create Rule</button></div>
       </form>
     </article>
     <article class="panel">
-      <div class="panel-header"><h3>Rules</h3><p>Current remediation rules.</p></div>
-      {% if rules %}<div class="stack-list">{% for r in rules %}<div class="alert-item"><div class="alert-message"><strong>{{ r.rule_name }}</strong> → {{ r.action_type }}</div><div class="alert-meta">{{ r.alert_type }}</div></div>{% endfor %}</div>{% else %}<div class="empty-state"><p>No rules created yet.</p></div>{% endif %}
+      <div class="panel-header"><h3>Rules</h3><p>Current remediation rules with enable and disable control.</p></div>
+      {% if rules %}<div class="stack-list">{% for r in rules %}<div class="alert-item"><div class="alert-message"><strong>{{ r.name }}</strong> → {{ r.action_type }}</div><div class="alert-meta">{{ r.alert_type }}{% if r.machine_role is defined and r.machine_role %} · role {{ r.machine_role }}{% endif %} · cooldown {{ r.cooldown_seconds }} min</div><div class="form-actions"><form method="post"><input type="hidden" name="form_type" value="toggle_rule"><input type="hidden" name="related_rule_id" value="{{ r.id }}"><input type="hidden" name="enabled" value="{{ 0 if (r.enabled if r.enabled is defined else r.enabled) else 1 }}"><button class="button-secondary small-button">{{ 'Disable' if (r.enabled if r.enabled is defined else r.enabled) else 'Enable' }}</button></form></div></div>{% endfor %}</div>{% else %}<div class="empty-state"><p>No rules created yet.</p></div>{% endif %}
     </article>
   </div>
 </section>
 
 <section class="panel">
-  <div class="panel-header"><h3>Recent Runs</h3><p>Latest remediation attempts.</p></div>
+  <div class="panel-header"><h3>Recent Runs</h3><p>Latest remediation attempts and queued command output.</p></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Status</th><th>Action</th><th>Recorded</th></tr></thead>
+      <thead><tr><th>Status</th><th>Message</th><th>Recorded</th></tr></thead>
       <tbody>
         {% for r in recent_runs %}
-        <tr><td>{{ r.status }}</td><td>{{ r.action_taken or '—' }}</td><td>{{ r.created_at or '—' }}</td></tr>
+        <tr><td>{{ r.status }}</td><td>{{ r.message or r.action_taken or '—' }}</td><td>{{ r.created_at or '—' }}</td></tr>
         {% else %}<tr><td colspan="3">No remediation runs yet.</td></tr>{% endfor %}
       </tbody>
     </table>

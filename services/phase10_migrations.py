@@ -33,12 +33,12 @@ def init_phase10_migrations():
     cur.execute("""
     CREATE TABLE IF NOT EXISTS remediation_rules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        rule_name TEXT,
+        name TEXT,
         alert_type TEXT,
         machine_role TEXT,
         action_type TEXT,
-        payload_json TEXT,
-        cooldown_minutes INTEGER DEFAULT 30,
+        action_payload_json TEXT,
+        cooldown_seconds INTEGER DEFAULT 30,
         auto_approve INTEGER DEFAULT 0,
         enabled INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -48,9 +48,9 @@ def init_phase10_migrations():
     cur.execute("""
     CREATE TABLE IF NOT EXISTS remediation_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        rule_id INTEGER,
+        related_rule_id INTEGER,
         machine_id INTEGER,
-        alert_id INTEGER,
+        related_alert_id INTEGER,
         status TEXT,
         action_taken TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP

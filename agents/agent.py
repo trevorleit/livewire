@@ -1,21 +1,27 @@
+import os
+import sys
+
+# Add project root before importing project modules
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import getpass
 import json
 import platform
 import socket
 import subprocess
-import sys
 import time
 import winreg
 
 import psutil
 import requests
+from services.service_name_utils import candidate_service_names, normalize_service_label
 
 SERVER_URL = "http://127.0.0.1:5000"
 API_KEY = "livewire-dev-key"
 INTERVAL = 30
 TOP_PROCESS_LIMIT = 8
 SOFTWARE_LIMIT = 300
-WATCH_SERVICES = ["Apache2.4", "MySQL80", "Spooler"]
+WATCH_SERVICES = ["Apache", "MySQL", "Spooler"]
 
 _previous_net_totals = None
 _previous_interface_totals = {}
@@ -101,24 +107,45 @@ def get_cpu_temperature():
             return round(max(vals), 2)
     return None
 
+def _get_windows_service_catalog():
+    try:
+        return [svc.as_dict() for svc in psutil.win_service_iter()]
+    except Exception:
+        return []
+
+
+def _resolve_service_info(requested_name, catalog):
+    candidates = [normalize_service_label(v) for v in candidate_service_names(requested_name)]
+    if not candidates:
+        return None
+
+    for info in catalog:
+        service_name = normalize_service_label(info.get("name"))
+        display_name = normalize_service_label(info.get("display_name"))
+        if service_name in candidates or display_name in candidates:
+            return info
+    return None
+
+
 def get_watched_services():
     if platform.system().lower() != "windows":
         return []
     results = []
+    catalog = _get_windows_service_catalog()
     for service_name in WATCH_SERVICES:
-        try:
-            svc = psutil.win_service_get(service_name)
-            info = svc.as_dict()
+        info = _resolve_service_info(service_name, catalog)
+        if info:
             results.append({
                 "service_name": info.get("name"),
-                "display_name": info.get("display_name"),
+                "display_name": info.get("display_name") or info.get("name"),
                 "status": info.get("status"),
                 "start_type": info.get("start_type"),
                 "username": info.get("username"),
                 "binpath": info.get("binpath"),
+                "requested_name": service_name,
             })
-        except Exception:
-            results.append({"service_name": service_name, "display_name": service_name, "status": "not_found", "start_type": "", "username": "", "binpath": ""})
+        else:
+            results.append({"service_name": service_name, "display_name": service_name, "status": "not_found", "start_type": "", "username": "", "binpath": "", "requested_name": service_name})
     return results
 
 def get_network_totals():

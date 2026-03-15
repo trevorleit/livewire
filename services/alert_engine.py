@@ -19,10 +19,10 @@ def create_alert_if_missing(cur, machine_id, alert_type, severity, message, host
         "INSERT INTO alerts (machine_id, alert_type, severity, message) VALUES (?, ?, ?, ?)",
         (machine_id, alert_type, severity, message),
     )
-    alert_id = cur.lastrowid
+    related_alert_id = cur.lastrowid
     handle_alert_notification(
         cur,
-        alert_id=alert_id,
+        related_alert_id=related_alert_id,
         machine_id=machine_id,
         hostname=hostname or f"machine-{machine_id}",
         alert_type=alert_type,
@@ -32,14 +32,14 @@ def create_alert_if_missing(cur, machine_id, alert_type, severity, message, host
     )
     run_remediation_rules(
         cur,
-        alert_id=alert_id,
+        related_alert_id=related_alert_id,
         machine_id=machine_id,
         hostname=hostname or f"machine-{machine_id}",
         alert_type=alert_type,
         severity=severity,
         message=message,
     )
-    return alert_id
+    return related_alert_id
 
 
 def resolve_alert(cur, machine_id, alert_type, hostname=None):
@@ -58,7 +58,7 @@ def resolve_alert(cur, machine_id, alert_type, hostname=None):
     for row in rows:
         handle_alert_notification(
             cur,
-            alert_id=row["id"],
+            related_alert_id=row["id"],
             machine_id=machine_id,
             hostname=hostname or f"machine-{machine_id}",
             alert_type=alert_type,

@@ -3,7 +3,7 @@
 <section class="panel">
   <div class="panel-header">
     <h2>Automation</h2>
-    <p>Create machine groups and schedule recurring jobs as LiveWire expands across your lab.</p>
+    <p>Create groups, assign machines, and schedule recurring actions with a cleaner operator workflow.</p>
   </div>
   <div class="two-col-panels">
     <article class="panel">
@@ -19,37 +19,107 @@
       </form>
     </article>
     <article class="panel">
-      <div class="panel-header"><h3>Groups</h3><p>Current machine groups.</p></div>
-      {% if groups %}
-        {% for g in groups %}
-          <div class="alert-item">
-            <div class="alert-message"><strong>{{ g.group_name }}</strong></div>
-            {% if g.description %}<div class="alert-meta">{{ g.description }}</div>{% endif %}
-            <div style="margin-top:10px;">
-              {% for m in g.members %}<span class="list-chip">{{ m.display_name or m.hostname }}</span>{% else %}<span class="muted">No members yet.</span>{% endfor %}
-            </div>
-          </div>
-        {% endfor %}
-      {% else %}<div class="empty-state"><p>No groups created yet.</p></div>{% endif %}
+      <div class="panel-header"><h3>Add Machine to Group</h3><p>Quick membership management without leaving the page.</p></div>
+      <form method="post">
+        <input type="hidden" name="form_type" value="add_group_member">
+        <div class="settings-grid">
+          <label class="field"><span>Group</span><select name="group_id">{% for g in groups %}<option value="{{ g.id }}">{{ g.group_name }}</option>{% endfor %}</select></label>
+          <label class="field"><span>Machine</span><select name="machine_id">{% for machine in machines %}<option value="{{ machine.id }}">{{ machine.display_name or machine.hostname }}</option>{% endfor %}</select></label>
+        </div>
+        <div class="form-actions"><button type="submit" class="button-secondary">Add Member</button></div>
+      </form>
     </article>
   </div>
 </section>
 
 <section class="panel">
-  <div class="panel-header"><h3>Scheduled Jobs</h3><p>Recurring tasks will show here as you add scheduler rules.</p></div>
+  <div class="panel-header"><h3>Current Groups</h3><p>Review memberships and remove machines when needed.</p></div>
+  {% if groups %}
+    <div class="stack-list">
+      {% for g in groups %}
+      <div class="alert-item">
+        <div class="alert-message"><strong>{{ g.group_name }}</strong></div>
+        {% if g.description %}<div class="alert-meta">{{ g.description }}</div>{% endif %}
+        <div style="margin-top:10px;">
+          {% for m in g.members %}
+            <span class="list-chip">{{ m.display_name or m.hostname }}</span>
+            <form method="post" style="display:inline-block; margin:0 8px 8px 0;">
+              <input type="hidden" name="form_type" value="remove_group_member">
+              <input type="hidden" name="group_id" value="{{ g.id }}">
+              <input type="hidden" name="machine_id" value="{{ m.id }}">
+              <button class="button-secondary small-button" type="submit">Remove</button>
+            </form>
+          {% else %}
+            <span class="muted">No members yet.</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}<div class="empty-state"><p>No groups created yet.</p></div>{% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header"><h3>Create Scheduled Job</h3><p>Queue recurring commands with online-awareness and approval rules.</p></div>
+  <form method="post" class="compact-form">
+    <input type="hidden" name="form_type" value="create_job">
+    <div class="settings-grid">
+      <label class="field"><span>Job name</span><input type="text" name="job_name" placeholder="Restart Apache every 4 hours"></label>
+      <label class="field"><span>Description</span><input type="text" name="description" placeholder="Keep the web stack responsive"></label>
+      <label class="field"><span>Target type</span><select name="target_type"><option value="machine">Machine</option><option value="group">Group</option></select></label>
+      <label class="field"><span>Target</span><select name="target_id">{% for machine in machines %}<option value="{{ machine.id }}">Machine · {{ machine.display_name or machine.hostname }}</option>{% endfor %}{% for g in groups %}<option value="{{ g.id }}">Group · {{ g.group_name }}</option>{% endfor %}</select></label>
+      <label class="field"><span>Action</span><select name="action_type"><option value="restart_service">Restart service</option><option value="stop_process">Stop process</option><option value="reboot_machine">Reboot machine</option></select></label>
+      <label class="field"><span>Service name</span><input type="text" name="service_name" placeholder="Apache or MySQL"></label>
+      <label class="field"><span>PID</span><input type="number" name="pid" placeholder="1234"></label>
+      <label class="field"><span>Reboot delay (seconds)</span><input type="number" name="delay_seconds" value="5"></label>
+      <label class="field"><span>Interval (minutes)</span><input type="number" name="interval_minutes" value="60"></label>
+      <label class="checkbox-field"><input type="checkbox" name="auto_approve"> Auto-approve commands</label>
+      <label class="checkbox-field"><input type="checkbox" name="only_when_online" checked> Only run when machine is online</label>
+    </div>
+    <div class="form-actions"><button type="submit" class="button-primary">Create Scheduled Job</button></div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="split-header panel-header">
+    <div><h3>Scheduled Jobs</h3><p>Recurring tasks with manual run and enable controls.</p></div>
+    <form method="post"><input type="hidden" name="form_type" value="tick_scheduler"><button class="button-secondary">Run Scheduler Tick</button></form>
+  </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Job</th><th>Action</th><th>Next Run</th><th>Last Run</th><th>Status</th></tr></thead>
+      <thead><tr><th>Job</th><th>Target</th><th>Action</th><th>Every</th><th>Next Run</th><th>Last Run</th><th>Status</th><th>Controls</th></tr></thead>
       <tbody>
         {% for j in jobs %}
         <tr>
-          <td>{{ j.job_name }}</td>
+          <td><strong>{{ j.job_name }}</strong>{% if j.description %}<div class="muted">{{ j.description }}</div>{% endif %}</td>
+          <td>{{ j.target_type }} #{{ j.target_id }}</td>
           <td>{{ j.action_type }}</td>
+          <td>{{ j.interval_minutes }} min</td>
           <td>{{ j.next_run_at or '—' }}</td>
           <td>{{ j.last_run_at or '—' }}</td>
-          <td>{% if j.is_enabled %}<span class="status-pill pill-online">Enabled</span>{% else %}<span class="status-pill pill-muted">Disabled</span>{% endif %}</td>
+          <td>{% if j.enabled %}<span class="status-pill pill-online">Enabled</span>{% else %}<span class="status-pill pill-muted">Disabled</span>{% endif %}</td>
+          <td>
+            <div class="inline-actions">
+              <form method="post"><input type="hidden" name="form_type" value="run_job_now"><input type="hidden" name="job_id" value="{{ j.id }}"><button class="button-primary small-button">Run now</button></form>
+              <form method="post"><input type="hidden" name="form_type" value="toggle_job"><input type="hidden" name="job_id" value="{{ j.id }}"><input type="hidden" name="enabled" value="{{ 0 if j.enabled else 1 }}"><button class="button-secondary small-button">{{ 'Disable' if j.enabled else 'Enable' }}</button></form>
+            </div>
+          </td>
         </tr>
-        {% else %}<tr><td colspan="5">No scheduled jobs yet.</td></tr>{% endfor %}
+        {% else %}<tr><td colspan="8">No scheduled jobs yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header"><h3>Recent Scheduler Runs</h3><p>Latest execution records for troubleshooting and QA.</p></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Job</th><th>Status</th><th>Summary</th><th>Recorded</th></tr></thead>
+      <tbody>
+        {% for row in recent_runs %}
+          <tr><td>{{ row.job_name if row.job_name is defined else row.job_id }}</td><td>{{ row.status }}</td><td>{{ row.summary_text }}</td><td>{{ row.created_at }}</td></tr>
+        {% else %}<tr><td colspan="4">No scheduler runs yet.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

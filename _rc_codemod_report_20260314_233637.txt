@@ -1,0 +1,38 @@
+LiveWire RC codemod report
+Root: C:\xampp\htdocs\livewire
+Backups: C:\xampp\htdocs\livewire\_rc_codemod_backup_20260314_233637
+Files reviewed: 47
+Files changed: 0
+
+FILE | CHANGED | NOTES
+------------------------------------------------------------------------------------------------------------------------
+database.py | no | replaced SQL token notification_type, -> notification_type, (3) | replaced SQL token metric_name, -> metric_name, (3) | replaced SQL token comparison_operator, -> comparison_operator, (3) | replaced SQL token threshold_value, -> threshold_value, (3) | replaced SQL token action_payload_json -> action_payload_json (5) | manual review remaining tokens: FROM notification_logs, FROM remediation_rules, cooldown_seconds, enabled, metric, operator, payload_json, related_alert_id, related_rule_id, request.form, threshold, type
+livewire_rc_codemod.py | no | replaced SQL token notification_type, -> notification_type, (3) | replaced SQL token metric_name, -> metric_name, (3) | replaced SQL token comparison_operator, -> comparison_operator, (3) | replaced SQL token threshold_value, -> threshold_value, (3) | replaced SQL token action_payload_json -> action_payload_json (3) | manual review remaining tokens: FROM notification_logs, FROM remediation_rules, INSERT INTO notification_logs, cooldown_seconds, enabled, metric, operator, payload_json, related_alert_id, related_rule_id, request.form, threshold, type
+README.md | no | manual review remaining tokens: metric, operator, threshold, type
+TEST_PLAN.md | no | manual review remaining tokens: threshold
+agents\agent.py | no | manual review remaining tokens: payload_json, type
+migrations\normalize_rc_schema.py | no | replaced SQL token metric_name, -> metric_name, (2) | replaced SQL token comparison_operator, -> comparison_operator, (2) | replaced SQL token threshold_value, -> threshold_value, (2) | replaced SQL token action_payload_json -> action_payload_json (4) | manual review remaining tokens: cooldown_seconds, enabled, metric, operator, payload_json, related_alert_id, related_rule_id, threshold, type
+routes\actions.py | no | manual review remaining tokens: request.form, type
+routes\alerts.py | no | replaced SQL token notification_type, -> notification_type, (1) | manual review remaining tokens: FROM notification_logs, related_alert_id, related_rule_id, type
+routes\api.py | no | manual review remaining tokens: payload_json, threshold, type
+routes\automation.py | no | replaced SQL token action_payload_json -> action_payload_json (2) | manual review remaining tokens: enabled, payload_json, request.form, type
+routes\inventory.py | no | manual review remaining tokens: request.form
+routes\response_center.py | no | manual review remaining tokens: cooldown_seconds, enabled, related_rule_id, request.form, type
+routes\settings.py | no | manual review remaining tokens: request.form, threshold
+services\alert_engine.py | no | manual review remaining tokens: related_alert_id, threshold, type
+services\command_center.py | no | replaced SQL token action_payload_json -> action_payload_json (1) | manual review remaining tokens: payload_json, type
+services\notification_service.py | no | manual review remaining tokens: INSERT INTO notification_logs, related_alert_id, type
+services\phase10_migrations.py | no | replaced SQL token action_payload_json -> action_payload_json (1) | manual review remaining tokens: cooldown_seconds, enabled, payload_json, related_alert_id, related_rule_id, type
+services\remediation_service.py | no | replaced SQL token action_payload_json -> action_payload_json (2) | manual review remaining tokens: FROM remediation_rules, cooldown_seconds, enabled, payload_json, related_alert_id, related_rule_id, type
+services\runtime_settings.py | no | manual review remaining tokens: threshold
+services\scheduler_service.py | no | replaced SQL token action_payload_json -> action_payload_json (8) | manual review remaining tokens: enabled, payload_json, type
+templates\actions.html | no | manual review remaining tokens: type
+templates\alerts.html | no | manual review remaining tokens: type
+templates\automation.html | no | manual review remaining tokens: enabled, operator, type
+templates\base.html | no | manual review remaining tokens: type
+templates\events.html | no | manual review remaining tokens: type
+templates\index.html | no | manual review remaining tokens: enabled, type
+templates\inventory.html | no | manual review remaining tokens: type
+templates\machine_detail.html | no | manual review remaining tokens: type
+templates\response_center.html | no | manual review remaining tokens: cooldown_seconds, enabled, related_rule_id, type
+templates\settings.html | no | manual review remaining tokens: threshold, type

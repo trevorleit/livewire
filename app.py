@@ -1,5 +1,6 @@
 from flask import Flask
-from database import init_db
+
+from database import init_db, ensure_rc_schema
 from routes.dashboard import dashboard_bp
 from routes.machines import machines_bp
 from routes.alerts import alerts_bp
@@ -9,17 +10,29 @@ from routes.api import api_bp
 from routes.events import events_bp
 from routes.actions import actions_bp
 from routes.response_center import response_center_bp
-from routes.response_center import response_center_bp
-from services.phase10_migrations import init_phase10_migrations
-from services.helpers import bytes_to_gb, bytes_to_mb, format_last_seen, format_uptime, format_rate_bps
-from services.runtime_settings import get_runtime_settings
 from routes.automation import automation_bp
+from services.phase10_migrations import init_phase10_migrations
+from services.helpers import (
+    bytes_to_gb,
+    bytes_to_mb,
+    format_last_seen,
+    format_uptime,
+    format_rate_bps,
+)
+from services.runtime_settings import get_runtime_settings
+
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        static_folder="static",
+        template_folder="templates",
+    )
+
+    ensure_rc_schema()
     init_db()
     init_phase10_migrations()
-    app.register_blueprint(response_center_bp, name="response_center_main")
+
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(machines_bp)
     app.register_blueprint(alerts_bp)
@@ -44,7 +57,16 @@ def create_app():
             "max_top_processes": runtime_settings["max_top_processes"],
         }
 
+    @app.route("/debug-static")
+    def debug_static():
+        return {
+            "static_folder": app.static_folder,
+            "template_folder": app.template_folder,
+            "static_url_path": app.static_url_path,
+        }
+
     return app
+
 
 app = create_app()
 

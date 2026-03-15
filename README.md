@@ -149,7 +149,7 @@ Each alert includes:
 -   Status (OPEN / RESOLVED)
 -   Severity
 -   Machine
--   Alert type
+-   Alert notification_type
 -   Message
 -   Notification count
 -   Remediation count
