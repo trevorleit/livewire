@@ -245,43 +245,83 @@
         </thead>
         <tbody>
           {% for j in jobs %}
-          <tr>
-            <td>
-              <strong>{{ j.job_name or ("Job #" ~ j.id) }}</strong>
-              {% if j.description %}
-                <div class="alert-meta" style="margin-top:4px;">{{ j.description }}</div>
-              {% endif %}
-            </td>
-            <td>{{ j.target_label }}</td>
-            <td>{{ j.action_type }}</td>
-            <td>{{ j.interval_minutes }} min</td>
-            <td>{{ j.next_run_at or "—" }}</td>
-            <td>
-              {% if j.enabled %}
-                <span class="status-pill pill-online">Enabled</span>
-              {% else %}
-                <span class="status-pill pill-muted">Disabled</span>
-              {% endif %}
-            </td>
-            <td>
-              <div class="inline-actions">
-                <form method="post">
-                  <input type="hidden" name="form_type" value="run_job_now">
-                  <input type="hidden" name="job_id" value="{{ j.id }}">
-                  <button class="button-secondary small-button" type="submit">Run Now</button>
-                </form>
+            {% set action_label =
+              "Restart Service" if j.action_type == "restart_service"
+              else "Stop Process" if j.action_type == "stop_process"
+              else "Reboot Machine" if j.action_type == "reboot_machine"
+              else (j.action_type or "Unknown")
+            %}
+            <tr>
+              <td>
+                <div class="job-title">{{ j.job_name or ("Job #" ~ j.id) }}</div>
+                {% if j.description %}
+                  <div class="job-desc">{{ j.description }}</div>
+                {% endif %}
 
-                <form method="post">
-                  <input type="hidden" name="form_type" value="toggle_job">
-                  <input type="hidden" name="job_id" value="{{ j.id }}">
-                  <input type="hidden" name="enabled" value="{% if j.enabled %}0{% else %}1{% endif %}">
-                  <button class="button-secondary small-button" type="submit">
-                    {% if j.enabled %}Disable{% else %}Enable{% endif %}
-                  </button>
-                </form>
-              </div>
-            </td>
-          </tr>
+                <div class="job-meta">
+                  {% if j.auto_approve %}
+                    <span class="status-pill pill-info">Auto Approve</span>
+                  {% endif %}
+                  {% if j.only_when_online %}
+                    <span class="status-pill pill-outline">Online Only</span>
+                  {% endif %}
+                </div>
+              </td>
+
+              <td>
+                <div class="job-target">{{ j.target_label }}</div>
+              </td>
+
+              <td>
+                <span class="job-action">{{ action_label }}</span>
+              </td>
+
+              <td class="cell-compact">
+                {{ j.interval_minutes }} min
+              </td>
+
+              <td>
+                <div class="next-run">
+                  <span>{{ j.next_run_at or "Not scheduled" }}</span>
+                  <small>
+                    {% if j.enabled %}
+                      Waiting for next eligible tick
+                    {% else %}
+                      Disabled jobs do not run
+                    {% endif %}
+                  </small>
+                </div>
+              </td>
+
+              <td>
+                <div class="inline-badges">
+                  {% if j.enabled %}
+                    <span class="status-pill pill-online">Enabled</span>
+                  {% else %}
+                    <span class="status-pill pill-muted">Disabled</span>
+                  {% endif %}
+                </div>
+              </td>
+
+              <td>
+                <div class="controls-stack">
+                  <form method="post">
+                    <input type="hidden" name="form_type" value="run_job_now">
+                    <input type="hidden" name="job_id" value="{{ j.id }}">
+                    <button class="button-secondary small-button" type="submit">Run Now</button>
+                  </form>
+
+                  <form method="post">
+                    <input type="hidden" name="form_type" value="toggle_job">
+                    <input type="hidden" name="job_id" value="{{ j.id }}">
+                    <input type="hidden" name="enabled" value="{% if j.enabled %}0{% else %}1{% endif %}">
+                    <button class="button-secondary small-button" type="submit">
+                      {% if j.enabled %}Disable{% else %}Enable{% endif %}
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>

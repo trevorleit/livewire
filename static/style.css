@@ -898,3 +898,68 @@ canvas{
   font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
   font-size:13px;
 }
+
+.job-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:8px;
+}
+
+.job-action{
+  font-weight:700;
+}
+
+.job-target{
+  font-weight:700;
+}
+
+.next-run{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.next-run small{
+  color:var(--muted);
+  font-size:12px;
+}
+
+.inline-badges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+
+.pill-outline{
+  color:var(--text);
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--border);
+}
+
+.controls-stack{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.cell-compact{
+  white-space:nowrap;
+}
+
+.text-soft{
+  color:var(--muted);
+}
+
+.job-title{
+  font-size:15px;
+  font-weight:800;
+  letter-spacing:-.01em;
+}
+
+.job-desc{
+  margin-top:4px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.4;
+}
