@@ -1,45 +1,100 @@
 {% extends "base.html" %}
 {% block content %}
+
 <section class="panel">
   <div class="panel-header">
     <h2>Automation</h2>
     <p>Create groups, assign machines, and schedule recurring actions with a cleaner operator workflow.</p>
   </div>
+
   <div class="two-col-panels">
     <article class="panel">
-      <div class="panel-header"><h3>Create Group</h3><p>Organize machines by role, room, or purpose.</p></div>
+      <div class="panel-header">
+        <h3>Create Group</h3>
+        <p>Organize machines by role, room, or purpose.</p>
+      </div>
+
       <form method="post">
         <input type="hidden" name="form_type" value="create_group">
+
         <div class="settings-grid">
-          <label class="field"><span>Group name</span><input type="text" name="group_name" placeholder="GPU Nodes"></label>
-          <label class="field"><span>Description</span><input type="text" name="description" placeholder="Rendering and AI workstations"></label>
-          <label class="field"><span>Color hex</span><input type="text" name="color_hex" value="#00cc66"></label>
+          <label class="field">
+            <span>Group name</span>
+            <input type="text" name="group_name" placeholder="GPU Nodes" required>
+          </label>
+
+          <label class="field">
+            <span>Description</span>
+            <input type="text" name="description" placeholder="Rendering and AI workstations">
+          </label>
+
+          <label class="field">
+            <span>Color hex</span>
+            <input type="text" name="color_hex" value="#00cc66" placeholder="#00cc66">
+          </label>
         </div>
-        <div class="form-actions"><button type="submit" class="button-primary">Create Group</button></div>
+
+        <div class="form-actions">
+          <button type="submit" class="button-primary">Create Group</button>
+        </div>
       </form>
     </article>
+
     <article class="panel">
-      <div class="panel-header"><h3>Add Machine to Group</h3><p>Quick membership management without leaving the page.</p></div>
+      <div class="panel-header">
+        <h3>Add Machine to Group</h3>
+        <p>Quick membership management without leaving the page.</p>
+      </div>
+
       <form method="post">
         <input type="hidden" name="form_type" value="add_group_member">
+
         <div class="settings-grid">
-          <label class="field"><span>Group</span><select name="group_id">{% for g in groups %}<option value="{{ g.id }}">{{ g.group_name }}</option>{% endfor %}</select></label>
-          <label class="field"><span>Machine</span><select name="machine_id">{% for machine in machines %}<option value="{{ machine.id }}">{{ machine.display_name or machine.hostname }}</option>{% endfor %}</select></label>
+          <label class="field">
+            <span>Group</span>
+            <select name="group_id" required>
+              {% for g in groups %}
+                <option value="{{ g.id }}">{{ g.group_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Machine</span>
+            <select name="machine_id" required>
+              {% for machine in machines %}
+                <option value="{{ machine.id }}">{{ machine.display_name or machine.hostname }}</option>
+              {% endfor %}
+            </select>
+          </label>
         </div>
-        <div class="form-actions"><button type="submit" class="button-secondary">Add Member</button></div>
+
+        <div class="form-actions">
+          <button type="submit" class="button-secondary">Add Member</button>
+        </div>
       </form>
     </article>
   </div>
 </section>
 
 <section class="panel">
-  <div class="panel-header"><h3>Current Groups</h3><p>Review memberships and remove machines when needed.</p></div>
+  <div class="panel-header">
+    <h3>Current Groups</h3>
+    <p>Review memberships and remove machines when needed.</p>
+  </div>
+
   {% if groups %}
     <div class="stack-list">
       {% for g in groups %}
       <div class="alert-item">
-        <div class="alert-message"><strong>{{ g.group_name }}</strong></div>
-        {% if g.description %}<div class="alert-meta">{{ g.description }}</div>{% endif %}
+        <div class="alert-message">
+          <strong>{{ g.group_name }}</strong>
+        </div>
+
+        {% if g.description %}
+          <div class="alert-meta">{{ g.description }}</div>
+        {% endif %}
+
         <div style="margin-top:10px;">
           {% for m in g.members %}
             <span class="list-chip">{{ m.display_name or m.hostname }}</span>
@@ -56,27 +111,104 @@
       </div>
       {% endfor %}
     </div>
-  {% else %}<div class="empty-state"><p>No groups created yet.</p></div>{% endif %}
+  {% else %}
+    <div class="empty-state">
+      <p>No groups created yet.</p>
+    </div>
+  {% endif %}
 </section>
 
 <section class="panel">
-  <div class="panel-header"><h3>Create Scheduled Job</h3><p>Queue recurring commands with online-awareness and approval rules.</p></div>
+  <div class="panel-header">
+    <h3>Create Scheduled Job</h3>
+    <p>Queue recurring commands with online-awareness and approval rules.</p>
+  </div>
+
   <form method="post" class="compact-form">
     <input type="hidden" name="form_type" value="create_job">
+
     <div class="settings-grid">
-      <label class="field"><span>Job name</span><input type="text" name="job_name" placeholder="Restart Apache every 4 hours"></label>
-      <label class="field"><span>Description</span><input type="text" name="description" placeholder="Keep the web stack responsive"></label>
-      <label class="field"><span>Target type</span><select name="target_type"><option value="machine">Machine</option><option value="group">Group</option></select></label>
-      <label class="field"><span>Target</span><select name="target_id">{% for machine in machines %}<option value="{{ machine.id }}">Machine · {{ machine.display_name or machine.hostname }}</option>{% endfor %}{% for g in groups %}<option value="{{ g.id }}">Group · {{ g.group_name }}</option>{% endfor %}</select></label>
-      <label class="field"><span>Action</span><select name="action_type"><option value="restart_service">Restart service</option><option value="stop_process">Stop process</option><option value="reboot_machine">Reboot machine</option></select></label>
-      <label class="field"><span>Service name</span><input type="text" name="service_name" placeholder="Apache or MySQL"></label>
-      <label class="field"><span>PID</span><input type="number" name="pid" placeholder="1234"></label>
-      <label class="field"><span>Reboot delay (seconds)</span><input type="number" name="delay_seconds" value="5"></label>
-      <label class="field"><span>Interval (minutes)</span><input type="number" name="interval_minutes" value="60"></label>
-      <label class="checkbox-field"><input type="checkbox" name="auto_approve"> Auto-approve commands</label>
-      <label class="checkbox-field"><input type="checkbox" name="only_when_online" checked> Only run when machine is online</label>
+      <label class="field">
+        <span>Job name</span>
+        <input type="text" name="job_name" placeholder="Restart Apache every 4 hours" required>
+      </label>
+
+      <label class="field">
+        <span>Description</span>
+        <input type="text" name="description" placeholder="Keep the web stack responsive">
+      </label>
+
+      <label class="field">
+        <span>Target type</span>
+        <select name="target_type" required>
+          <option value="machine">Machine</option>
+          <option value="group">Group</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Target</span>
+        <select name="target_id" required>
+          <optgroup label="Machines">
+            {% for machine in machines %}
+              <option value="{{ machine.id }}">Machine · {{ machine.display_name or machine.hostname }}</option>
+            {% endfor %}
+          </optgroup>
+          <optgroup label="Groups">
+            {% for g in groups %}
+              <option value="{{ g.id }}">Group · {{ g.group_name }}</option>
+            {% endfor %}
+          </optgroup>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Action</span>
+        <select name="action_type" required>
+          <option value="restart_service">Restart service</option>
+          <option value="stop_process">Stop process</option>
+          <option value="reboot_machine">Reboot machine</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Service name</span>
+        <input type="text" name="service_name" placeholder="Apache or MySQL">
+      </label>
+
+      <label class="field">
+        <span>PID</span>
+        <input type="number" name="pid" placeholder="1234">
+      </label>
+
+      <label class="field">
+        <span>Reboot delay (seconds)</span>
+        <input type="number" name="delay_seconds" value="5" min="0">
+      </label>
+
+      <label class="field">
+        <span>Interval (minutes)</span>
+        <input type="number" name="interval_minutes" value="60" min="1" required>
+      </label>
+
+      <label class="checkbox-field">
+        <input type="checkbox" name="auto_approve">
+        Auto-approve commands
+      </label>
+
+      <label class="checkbox-field">
+        <input type="checkbox" name="only_when_online" checked>
+        Only run when machine is online
+      </label>
     </div>
-    <div class="form-actions"><button type="submit" class="button-primary">Create Scheduled Job</button></div>
+
+    <div class="helper-text" style="margin-top:10px;">
+      Choose a target type first, then select the matching target from the list. For now, both machines and groups are shown in the target dropdown.
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="button-primary">Create Scheduled Job</button>
+    </div>
   </form>
 </section>
 
@@ -86,6 +218,7 @@
       <h3>Scheduled Jobs</h3>
       <p>Recurring tasks with manual run and enable controls.</p>
     </div>
+
     <form method="post">
       <input type="hidden" name="form_type" value="tick_scheduler">
       <button class="button-secondary" type="submit">Run Scheduler Tick</button>
@@ -157,16 +290,37 @@
 </section>
 
 <section class="panel">
-  <div class="panel-header"><h3>Recent Scheduler Runs</h3><p>Latest execution records for troubleshooting and QA.</p></div>
+  <div class="panel-header">
+    <h3>Recent Scheduler Runs</h3>
+    <p>Latest execution records for troubleshooting and QA.</p>
+  </div>
+
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Job</th><th>Status</th><th>Summary</th><th>Recorded</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Job</th>
+          <th>Status</th>
+          <th>Summary</th>
+          <th>Recorded</th>
+        </tr>
+      </thead>
       <tbody>
         {% for row in recent_runs %}
-          <tr><td>{{ row.job_name if row.job_name is defined else row.job_id }}</td><td>{{ row.status }}</td><td>{{ row.summary_text }}</td><td>{{ row.created_at }}</td></tr>
-        {% else %}<tr><td colspan="4">No scheduler runs yet.</td></tr>{% endfor %}
+          <tr>
+            <td>{{ row.job_name if row.job_name is defined else row.job_id }}</td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.summary_text }}</td>
+            <td>{{ row.created_at }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="4">No scheduler runs yet.</td>
+          </tr>
+        {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
+
 {% endblock %}

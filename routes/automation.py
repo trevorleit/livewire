@@ -33,13 +33,20 @@ def _build_target_label(job, machine_map, group_map):
     if target_type == "all":
         return "All Machines"
 
-    return f"{target_type} #{target_id}"
+    return f"{target_type or 'Unknown'} #{target_id}" if target_id is not None else (target_type or "Unknown")
+
+
+def _safe_int(value, default=None):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 @automation_bp.route("/automation", methods=["GET", "POST"])
 def automation():
     if request.method == "POST":
-        form_type = request.form.get("form_type", "")
+        form_type = request.form.get("form_type", "").strip()
 
         try:
             if form_type == "create_group":
@@ -54,21 +61,21 @@ def automation():
                     flash(f'Group "{group_name}" created.', "success")
 
             elif form_type == "add_group_member":
-                group_id = request.form.get("group_id")
-                machine_id = request.form.get("machine_id")
+                group_id = _safe_int(request.form.get("group_id"))
+                machine_id = _safe_int(request.form.get("machine_id"))
 
-                if str(group_id).isdigit() and str(machine_id).isdigit():
-                    add_machine_to_group(int(group_id), int(machine_id))
+                if group_id and machine_id:
+                    add_machine_to_group(group_id, machine_id)
                     flash("Machine added to group.", "success")
                 else:
                     flash("Invalid group or machine selection.", "warning")
 
             elif form_type == "remove_group_member":
-                group_id = request.form.get("group_id")
-                machine_id = request.form.get("machine_id")
+                group_id = _safe_int(request.form.get("group_id"))
+                machine_id = _safe_int(request.form.get("machine_id"))
 
-                if str(group_id).isdigit() and str(machine_id).isdigit():
-                    remove_machine_from_group(int(group_id), int(machine_id))
+                if group_id and machine_id:
+                    remove_machine_from_group(group_id, machine_id)
                     flash("Machine removed from group.", "success")
                 else:
                     flash("Invalid group or machine selection.", "warning")
@@ -78,44 +85,67 @@ def automation():
                 description = request.form.get("description", "").strip()
                 action_type = request.form.get("action_type", "").strip()
                 target_type = request.form.get("target_type", "machine").strip()
-                target_id = request.form.get("target_id")
-                interval_minutes = int(request.form.get("interval_minutes", "60") or 60)
+                target_id = _safe_int(request.form.get("target_id"))
+                interval_minutes = _safe_int(request.form.get("interval_minutes", "60"), 60)
+
+                service_name = request.form.get("service_name", "").strip()
+                pid = request.form.get("pid", "").strip()
+                delay_seconds = request.form.get("delay_seconds", "5").strip()
 
                 if not job_name:
                     flash("Job name is required.", "warning")
+
                 elif not action_type:
                     flash("Action type is required.", "warning")
+
                 elif target_type not in ("machine", "group"):
                     flash("Target type must be machine or group.", "warning")
-                elif not str(target_id).isdigit():
+
+                elif not target_id:
                     flash("A valid target is required.", "warning")
+
+                elif interval_minutes is None or interval_minutes < 1:
+                    flash("Interval minutes must be 1 or greater.", "warning")
+
+                elif action_type == "restart_service" and not service_name:
+                    flash("Service name is required for restart_service.", "warning")
+
+                elif action_type == "stop_process" and not pid:
+                    flash("PID is required for stop_process.", "warning")
+
+                elif action_type == "stop_process" and not str(pid).isdigit():
+                    flash("PID must be a number.", "warning")
+
+                elif action_type == "reboot_machine" and not str(delay_seconds).isdigit():
+                    flash("Delay seconds must be a number.", "warning")
+
                 else:
                     action_payload_json = normalize_payload(
                         action_type,
-                        service_name=request.form.get("service_name", ""),
-                        pid=request.form.get("pid", ""),
-                        delay_seconds=request.form.get("delay_seconds", "5"),
+                        service_name=service_name,
+                        pid=pid,
+                        delay_seconds=delay_seconds or "5",
                     )
 
                     create_scheduled_job(
-                        job_name,
-                        description,
-                        target_type,
-                        int(target_id),
-                        action_type,
-                        action_payload_json,
-                        interval_minutes,
+                        job_name=job_name,
+                        description=description,
+                        target_type=target_type,
+                        target_id=target_id,
+                        action_type=action_type,
+                        action_payload_json=action_payload_json,
+                        interval_minutes=interval_minutes,
                         auto_approve=1 if request.form.get("auto_approve") == "on" else 0,
                         only_when_online=1 if request.form.get("only_when_online") == "on" else 0,
                     )
                     flash(f'Scheduled job "{job_name}" created.', "success")
 
             elif form_type == "toggle_job":
-                job_id = request.form.get("job_id")
+                job_id = _safe_int(request.form.get("job_id"))
                 enabled = request.form.get("enabled") == "1"
 
-                if str(job_id).isdigit():
-                    set_job_enabled(int(job_id), enabled)
+                if job_id:
+                    set_job_enabled(job_id, enabled)
                     flash(
                         "Scheduled job enabled." if enabled else "Scheduled job disabled.",
                         "success",
@@ -124,10 +154,10 @@ def automation():
                     flash("Invalid job id.", "warning")
 
             elif form_type == "run_job_now":
-                job_id = request.form.get("job_id")
+                job_id = _safe_int(request.form.get("job_id"))
 
-                if str(job_id).isdigit():
-                    run_job_now(int(job_id))
+                if job_id:
+                    run_job_now(job_id)
                     flash("Scheduled job executed manually.", "success")
                 else:
                     flash("Invalid job id.", "warning")
