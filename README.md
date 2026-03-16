@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ⚡ LiveWire
 
 <p align="center">
@@ -336,3 +337,6 @@ Green Tee Design
 # License
 
 This project is provided as a learning and experimentation platform for infrastructure automation and monitoring systems.
+=======
+# livewire
+>>>>>>> 8b0bd84be81f244f34098e2ffc26ff1e818d35ce
