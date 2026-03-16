@@ -1,21 +1,41 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="detail-header">
   <div>
     <div class="eyebrow">Machine Detail</div>
     <h2>{{ machine.display_name or machine.hostname }}</h2>
-    <p class="muted">{{ machine.hostname }} • {{ machine.os_name or 'Unknown OS' }} • {{ machine.ip_address or 'No IP reported' }}</p>
+    <p class="muted">
+      {{ machine.hostname }} •
+      {{ machine.os_name or 'Unknown OS' }} •
+      {{ machine.ip_address or 'No IP reported' }}
+    </p>
   </div>
+
   <div class="card-badges">
-    {% if machine.machine_role %}<span class="status-pill pill-muted">{{ machine.machine_role }}</span>{% endif %}
-    {% if open_alert_rows|length %}<span class="status-pill pill-warning">{{ open_alert_rows|length }} open alert{{ '' if open_alert_rows|length == 1 else 's' }}</span>{% endif %}
-    <span class="status-pill {{ 'pill-online' if machine.is_online else 'pill-offline' }}">{{ 'Online' if machine.is_online else 'Offline' }}</span>
+    {% if machine.machine_role %}
+      <span class="status-pill pill-muted">{{ machine.machine_role }}</span>
+    {% endif %}
+
+    {% if open_alert_rows|length %}
+      <span class="status-pill pill-warning">
+        {{ open_alert_rows|length }} open alert{{ '' if open_alert_rows|length == 1 else 's' }}
+      </span>
+    {% endif %}
+
+    <span class="status-pill {{ 'pill-online' if machine.is_online else 'pill-offline' }}">
+      {{ 'Online' if machine.is_online else 'Offline' }}
+    </span>
   </div>
 </div>
 
 <section class="detail-grid">
   <div class="panel">
-    <div class="panel-header"><h3>Quick Actions</h3><p>Queue safe actions directly from this machine page.</p></div>
+    <div class="panel-header">
+      <h3>Quick Actions</h3>
+      <p>Queue safe actions directly from this machine page.</p>
+    </div>
+
     <div class="quick-actions-grid">
       <form method="post" action="{{ url_for('actions.actions') }}" class="quick-action-card">
         <input type="hidden" name="form_type" value="create_command">
@@ -23,9 +43,13 @@
         <input type="hidden" name="action_type" value="reboot_machine">
         <input type="hidden" name="delay_seconds" value="5">
         <input type="hidden" name="redirect_to" value="machine">
+
         <h4>Reboot Machine</h4>
-        <p>Queues a reboot with a short delay.</p>
-        <button type="submit" class="button-primary">Queue Reboot</button>
+        <p>Queues a reboot with a short delay for controlled testing.</p>
+
+        <div class="form-actions">
+          <button type="submit" class="button-primary">Queue Reboot</button>
+        </div>
       </form>
 
       <form method="post" action="{{ url_for('actions.actions') }}" class="quick-action-card">
@@ -34,9 +58,13 @@
         <input type="hidden" name="action_type" value="restart_service">
         <input type="hidden" name="service_name" value="Spooler">
         <input type="hidden" name="redirect_to" value="machine">
+
         <h4>Restart Spooler</h4>
-        <p>Useful safe test for the command flow.</p>
-        <button type="submit" class="button-primary">Queue Restart</button>
+        <p>Useful safe command to validate the remote action flow.</p>
+
+        <div class="form-actions">
+          <button type="submit" class="button-primary">Queue Restart</button>
+        </div>
       </form>
 
       <form method="post" action="{{ url_for('actions.actions') }}" class="quick-action-card">
@@ -44,26 +72,46 @@
         <input type="hidden" name="machine_id" value="{{ machine.id }}">
         <input type="hidden" name="action_type" value="restart_service">
         <input type="hidden" name="redirect_to" value="machine">
+
         <h4>Restart Custom Service</h4>
-        <p>Enter a Windows service name and queue it.</p>
-        <input type="text" name="service_name" placeholder="Service name">
-        <button type="submit" class="button-primary">Queue Custom Restart</button>
+        <p>Enter a Windows service name and queue it for this machine.</p>
+
+        <div class="field">
+          <span>Service Name</span>
+          <input type="text" name="service_name" placeholder="Apache, MySQL, Spooler" required>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button-primary">Queue Custom Restart</button>
+        </div>
       </form>
     </div>
   </div>
 
   <div class="panel">
-    <div class="panel-header"><h3>Recent Commands</h3><p>Latest remote actions for this machine.</p></div>
+    <div class="panel-header">
+      <h3>Recent Commands</h3>
+      <p>Latest remote actions for this machine.</p>
+    </div>
+
     <div class="table-wrap">
       <table>
-        <thead><tr><th>ID</th><th>Action</th><th>Status</th><th>Created</th><th>Result</th></tr></thead>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Action</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Result</th>
+          </tr>
+        </thead>
         <tbody>
           {% for row in recent_commands %}
           <tr>
             <td>{{ row.id }}</td>
             <td>{{ row.action_type }}</td>
             <td>
-              <span class="status-pill {{ 'pill-warning' if row.status in ['pending_approval','sent'] else ('pill-online' if row.status == 'completed' else ('pill-muted' if row.status == 'approved' else 'pill-offline')) }}">
+              <span class="status-pill {{ 'pill-warning' if row.status in ['pending_approval', 'sent'] else ('pill-online' if row.status == 'completed' else ('pill-muted' if row.status == 'approved' else 'pill-offline')) }}">
                 {{ row.status }}
               </span>
             </td>
@@ -71,7 +119,50 @@
             <td><div class="result-box small">{{ row.result_text or '—' }}</div></td>
           </tr>
           {% else %}
-          <tr><td colspan="5">No commands queued for this machine yet.</td></tr>
+          <tr>
+            <td colspan="5">No commands queued for this machine yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Recent Commands</h3>
+      <p>Latest remote actions for this machine.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Action</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in recent_commands %}
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.action_type }}</td>
+            <td>
+              <span class="status-pill {{ 'pill-warning' if row.status in ['pending_approval', 'sent'] else ('pill-online' if row.status == 'completed' else ('pill-muted' if row.status == 'approved' else 'pill-offline')) }}">
+                {{ row.status }}
+              </span>
+            </td>
+            <td>{{ row.created_at }}</td>
+            <td><div class="result-box">{{ row.result_text or '—' }}</div></td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5">No commands queued for this machine yet.</td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -81,7 +172,11 @@
 
 {% if open_alert_rows %}
 <section class="panel">
-  <div class="panel-header"><h3>Open Alerts</h3><p>Current unresolved conditions for this machine.</p></div>
+  <div class="panel-header">
+    <h3>Open Alerts</h3>
+    <p>Current unresolved conditions for this machine.</p>
+  </div>
+
   <div class="alert-list">
     {% for alert in open_alert_rows %}
     <div class="alert-item {{ 'critical' if alert.severity == 'critical' else 'warning' }}">
@@ -96,7 +191,11 @@
 
 <section class="detail-grid">
   <div class="panel">
-    <div class="panel-header"><h3>Current Status</h3><p>Latest values reported by the agent.</p></div>
+    <div class="panel-header">
+      <h3>Current Status</h3>
+      <p>Latest values reported by the agent.</p>
+    </div>
+
     <div class="stats-grid">
       <div class="stat-box"><span class="stat-label">Current User</span><strong>{{ machine.current_user or 'N/A' }}</strong></div>
       <div class="stat-box"><span class="stat-label">CPU</span><strong>{{ "%.1f"|format(machine.cpu_percent or 0) }}%</strong></div>
@@ -108,8 +207,13 @@
       <div class="stat-box"><span class="stat-label">Uptime</span><strong>{{ format_uptime(machine.uptime_seconds) }}</strong></div>
     </div>
   </div>
+
   <div class="panel">
-    <div class="panel-header"><h3>GPU Telemetry</h3><p>Current GPU state from the latest check-in.</p></div>
+    <div class="panel-header">
+      <h3>GPU Telemetry</h3>
+      <p>Current GPU state from the latest check-in.</p>
+    </div>
+
     <div class="stats-grid">
       <div class="stat-box"><span class="stat-label">GPU Name</span><strong>{{ machine.gpu_name or 'N/A' }}</strong></div>
       <div class="stat-box"><span class="stat-label">GPU Load</span><strong>{{ "%.1f"|format(machine.gpu_load or 0) ~ '%' if machine.gpu_name else 'N/A' }}</strong></div>
@@ -123,7 +227,11 @@
 
 <section class="detail-grid">
   <div class="panel">
-    <div class="panel-header"><h3>Inventory Snapshot</h3><p>Hardware and runtime details collected by the agent.</p></div>
+    <div class="panel-header">
+      <h3>Inventory Snapshot</h3>
+      <p>Hardware and runtime details collected by the agent.</p>
+    </div>
+
     <div class="stats-grid">
       <div class="stat-box"><span class="stat-label">CPU Model</span><strong>{{ inventory_row.cpu_model if inventory_row else 'N/A' }}</strong></div>
       <div class="stat-box"><span class="stat-label">Physical Cores</span><strong>{{ inventory_row.physical_cores if inventory_row else 'N/A' }}</strong></div>
@@ -135,8 +243,13 @@
       <div class="stat-box"><span class="stat-label">Location</span><strong>{{ machine.location or 'N/A' }}</strong></div>
     </div>
   </div>
+
   <div class="panel">
-    <div class="panel-header"><h3>Throughput & I/O</h3><p>Live network rates and cumulative disk I/O counters.</p></div>
+    <div class="panel-header">
+      <h3>Throughput & I/O</h3>
+      <p>Live network rates and cumulative disk I/O counters.</p>
+    </div>
+
     <div class="stats-grid">
       <div class="stat-box"><span class="stat-label">Net Up</span><strong>{{ format_rate_bps(machine.net_up_bps) }}</strong></div>
       <div class="stat-box"><span class="stat-label">Net Down</span><strong>{{ format_rate_bps(machine.net_down_bps) }}</strong></div>
@@ -147,22 +260,43 @@
 </section>
 
 <section class="panel">
-  <div class="panel-header"><h3>Network Interfaces</h3><p>Current interface state, address info, totals, and live throughput.</p></div>
+  <div class="panel-header">
+    <h3>Network Interfaces</h3>
+    <p>Current interface state, address info, totals, and live throughput.</p>
+  </div>
+
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Interface</th><th>Status</th><th>Speed</th><th>IP</th><th>Up</th><th>Down</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Interface</th>
+          <th>Status</th>
+          <th>Speed</th>
+          <th>IP</th>
+          <th>Up</th>
+          <th>Down</th>
+        </tr>
+      </thead>
       <tbody>
         {% for row in interface_rows %}
         <tr>
           <td>{{ row.interface_name }}</td>
-          <td>{% if row.is_up %}<span class="status-pill pill-online">Up</span>{% else %}<span class="status-pill pill-offline">Down</span>{% endif %}</td>
+          <td>
+            {% if row.is_up %}
+              <span class="status-pill pill-online">Up</span>
+            {% else %}
+              <span class="status-pill pill-offline">Down</span>
+            {% endif %}
+          </td>
           <td>{{ row.speed_mbps or 0 }} Mbps</td>
           <td>{{ row.ip_address or 'N/A' }}</td>
           <td>{{ format_rate_bps(row.up_bps) }}</td>
           <td>{{ format_rate_bps(row.down_bps) }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="6">No interface data yet.</td></tr>
+        <tr>
+          <td colspan="6">No interface data yet.</td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -170,72 +304,247 @@
 </section>
 
 <section class="panel">
-  <div class="panel-header"><h3>Drive Breakdown</h3><p>All mounted local volumes reported by this machine.</p></div>
+  <div class="panel-header">
+    <h3>Drive Breakdown</h3>
+    <p>All mounted local volumes reported by this machine.</p>
+  </div>
+
   <div class="drive-grid">
     {% for drive in drive_rows %}
     <div class="drive-card">
-      <div class="drive-top"><div><h4>{{ drive.mountpoint or drive.device or 'Drive' }}</h4><div class="muted">{{ drive.filesystem or 'Unknown FS' }}</div></div><div class="drive-percent">{{ "%.1f"|format(drive.percent_used or 0) }}%</div></div>
-      <div class="progress"><div class="progress-fill" style="width: {{ drive.percent_used or 0 }}%"></div></div>
-      <div class="drive-meta"><span>Used {{ bytes_to_gb(drive.used_bytes) }} GB</span><span>Free {{ bytes_to_gb(drive.free_bytes) }} GB</span><span>Total {{ bytes_to_gb(drive.total_bytes) }} GB</span></div>
+      <div class="drive-top">
+        <div>
+          <h4>{{ drive.mountpoint or drive.device or 'Drive' }}</h4>
+          <div class="muted">{{ drive.filesystem or 'Unknown FS' }}</div>
+        </div>
+        <div class="drive-percent">{{ "%.1f"|format(drive.percent_used or 0) }}%</div>
+      </div>
+
+      <div class="meter">
+        <div class="meter-fill {% if (drive.percent_used or 0) >= 90 %}danger{% elif (drive.percent_used or 0) >= 75 %}warning{% endif %}" style="width: {{ drive.percent_used or 0 }}%"></div>
+      </div>
+
+      <div class="drive-meta">
+        <span>Used {{ bytes_to_gb(drive.used_bytes) }} GB</span>
+        <span>Free {{ bytes_to_gb(drive.free_bytes) }} GB</span>
+        <span>Total {{ bytes_to_gb(drive.total_bytes) }} GB</span>
+      </div>
     </div>
     {% else %}
-    <div class="empty-state"><h3>No drive data yet.</h3><p>Wait for the next agent check-in.</p></div>
+    <div class="empty-state">
+      <h3>No drive data yet.</h3>
+      <p>Wait for the next agent check-in.</p>
+    </div>
     {% endfor %}
   </div>
 </section>
 
 <section class="detail-grid">
   <div class="panel">
-    <div class="panel-header"><h3>Service Monitoring</h3><p>Watched service states from the latest check-in.</p></div>
-    <div class="table-wrap"><table><thead><tr><th>Service</th><th>Status</th><th>Start Type</th><th>User</th></tr></thead><tbody>
-      {% for row in service_rows %}
-      <tr><td>{{ row.display_name or row.service_name or 'Unknown' }}</td><td>{% if (row.status or '').lower() == 'running' %}<span class="status-pill pill-online">Running</span>{% else %}<span class="status-pill pill-offline">{{ row.status or 'Unknown' }}</span>{% endif %}</td><td>{{ row.start_type or 'N/A' }}</td><td>{{ row.username or 'N/A' }}</td></tr>
-      {% else %}<tr><td colspan="4">No service data yet.</td></tr>{% endfor %}
-    </tbody></table></div>
+    <div class="panel-header">
+      <h3>Service Monitoring</h3>
+      <p>Watched service states from the latest check-in.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Status</th>
+            <th>Start Type</th>
+            <th>User</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in service_rows %}
+          <tr>
+            <td>{{ row.display_name or row.service_name or 'Unknown' }}</td>
+            <td>
+              {% if (row.status or '').lower() == 'running' %}
+                <span class="status-pill pill-online">Running</span>
+              {% else %}
+                <span class="status-pill pill-offline">{{ row.status or 'Unknown' }}</span>
+              {% endif %}
+            </td>
+            <td>{{ row.start_type or 'N/A' }}</td>
+            <td>{{ row.username or 'N/A' }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4">No service data yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
+
   <div class="panel">
-    <div class="panel-header"><h3>Top CPU Processes</h3><p>Highest CPU consumers from the latest check-in.</p></div>
-    <div class="table-wrap"><table><thead><tr><th>Process</th><th>PID</th><th>CPU %</th><th>Memory MB</th></tr></thead><tbody>
-      {% for row in top_cpu_processes %}
-      <tr><td>{{ row.process_name or 'Unknown' }}</td><td>{{ row.pid or 'N/A' }}</td><td>{{ "%.1f"|format(row.cpu_percent or 0) }}%</td><td>{{ "%.1f"|format(row.memory_mb or 0) }}</td></tr>
-      {% else %}<tr><td colspan="4">No CPU process data yet.</td></tr>{% endfor %}
-    </tbody></table></div>
+    <div class="panel-header">
+      <h3>Top CPU Processes</h3>
+      <p>Highest CPU consumers from the latest check-in.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Process</th>
+            <th>PID</th>
+            <th>CPU %</th>
+            <th>Memory MB</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_cpu_processes %}
+          <tr>
+            <td>{{ row.process_name or 'Unknown' }}</td>
+            <td>{{ row.pid or 'N/A' }}</td>
+            <td>{{ "%.1f"|format(row.cpu_percent or 0) }}%</td>
+            <td>{{ "%.1f"|format(row.memory_mb or 0) }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4">No CPU process data yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 
 <section class="detail-grid">
   <div class="panel">
-    <div class="panel-header"><h3>Top Memory Processes</h3><p>Highest memory consumers from the latest check-in.</p></div>
-    <div class="table-wrap"><table><thead><tr><th>Process</th><th>PID</th><th>Memory MB</th><th>Memory %</th></tr></thead><tbody>
-      {% for row in top_memory_processes %}
-      <tr><td>{{ row.process_name or 'Unknown' }}</td><td>{{ row.pid or 'N/A' }}</td><td>{{ "%.1f"|format(row.memory_mb or 0) }}</td><td>{{ "%.1f"|format(row.memory_percent or 0) }}%</td></tr>
-      {% else %}<tr><td colspan="4">No memory process data yet.</td></tr>{% endfor %}
-    </tbody></table></div>
+    <div class="panel-header">
+      <h3>Top Memory Processes</h3>
+      <p>Highest memory consumers from the latest check-in.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Process</th>
+            <th>PID</th>
+            <th>Memory MB</th>
+            <th>Memory %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_memory_processes %}
+          <tr>
+            <td>{{ row.process_name or 'Unknown' }}</td>
+            <td>{{ row.pid or 'N/A' }}</td>
+            <td>{{ "%.1f"|format(row.memory_mb or 0) }}</td>
+            <td>{{ "%.1f"|format(row.memory_percent or 0) }}%</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4">No memory process data yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
+
   <div class="panel">
-    <div class="panel-header"><h3>Recent Check-ins</h3><p>Latest {{ recent_snapshots|length }} reports received.</p></div>
-    <div class="table-wrap"><table><thead><tr><th>Recorded</th><th>CPU</th><th>RAM</th><th>Net Up</th><th>Net Down</th><th>Temp</th><th>User</th></tr></thead><tbody>
-      {% for row in recent_snapshots %}
-      <tr><td>{{ row.recorded_at }}</td><td>{{ "%.1f"|format(row.cpu_percent or 0) }}%</td><td>{{ "%.1f"|format(row.ram_percent or 0) }}%</td><td>{{ format_rate_bps(row.net_up_bps) }}</td><td>{{ format_rate_bps(row.net_down_bps) }}</td><td>{{ "%.1f °C"|format(row.cpu_temp or 0) if row.cpu_temp is not none else 'N/A' }}</td><td>{{ row.current_user or 'N/A' }}</td></tr>
-      {% endfor %}
-    </tbody></table></div>
+    <div class="panel-header">
+      <h3>Recent Check-ins</h3>
+      <p>Latest {{ recent_snapshots|length }} reports received.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Recorded</th>
+            <th>CPU</th>
+            <th>RAM</th>
+            <th>Net Up</th>
+            <th>Net Down</th>
+            <th>Temp</th>
+            <th>User</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in recent_snapshots %}
+          <tr>
+            <td>{{ row.recorded_at }}</td>
+            <td>{{ "%.1f"|format(row.cpu_percent or 0) }}%</td>
+            <td>{{ "%.1f"|format(row.ram_percent or 0) }}%</td>
+            <td>{{ format_rate_bps(row.net_up_bps) }}</td>
+            <td>{{ format_rate_bps(row.net_down_bps) }}</td>
+            <td>{{ "%.1f °C"|format(row.cpu_temp or 0) if row.cpu_temp is not none else 'N/A' }}</td>
+            <td>{{ row.current_user or 'N/A' }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7">No recent snapshots yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 
 <section class="panel">
-  <div class="panel-header"><h3>Installed Software</h3><p>Latest software inventory snapshot from this machine.</p></div>
-  <div class="table-wrap"><table><thead><tr><th>Name</th><th>Version</th><th>Publisher</th><th>Source</th></tr></thead><tbody>
-    {% for row in software_rows %}
-    <tr><td>{{ row.name }}</td><td>{{ row.version or 'N/A' }}</td><td>{{ row.publisher or 'N/A' }}</td><td>{{ row.source or 'N/A' }}</td></tr>
-    {% else %}<tr><td colspan="4">No software inventory yet.</td></tr>{% endfor %}
-  </tbody></table></div>
+  <div class="panel-header">
+    <h3>Installed Software</h3>
+    <p>Latest software inventory snapshot from this machine.</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Version</th>
+          <th>Publisher</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in software_rows %}
+        <tr>
+          <td>{{ row.name }}</td>
+          <td>{{ row.version or 'N/A' }}</td>
+          <td>{{ row.publisher or 'N/A' }}</td>
+          <td>{{ row.source or 'N/A' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4">No software inventory yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <section class="chart-grid">
-  <div class="panel"><div class="panel-header"><h3>CPU History</h3></div><canvas id="cpuChart"></canvas></div>
-  <div class="panel"><div class="panel-header"><h3>RAM History</h3></div><canvas id="ramChart"></canvas></div>
-  <div class="panel"><div class="panel-header"><h3>Temperature History</h3></div><canvas id="tempChart"></canvas></div>
-  <div class="panel"><div class="panel-header"><h3>Network Throughput</h3></div><canvas id="netChart"></canvas></div>
+  <div class="panel">
+    <div class="panel-header"><h3>CPU History</h3></div>
+    <canvas id="cpuChart"></canvas>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><h3>RAM History</h3></div>
+    <canvas id="ramChart"></canvas>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><h3>Temperature History</h3></div>
+    <canvas id="tempChart"></canvas>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><h3>Network Throughput</h3></div>
+    <canvas id="netChart"></canvas>
+  </div>
 </section>
 
 <script>
@@ -245,30 +554,101 @@ const ramData = {{ ram_data|tojson }};
 const tempData = {{ temp_data|tojson }};
 const upData = {{ up_data|tojson }};
 const downData = {{ down_data|tojson }};
+
 const accent = window.livewireAccent || '#00cc66';
 const accentSoft = 'rgba(0, 204, 102, 0.18)';
 const blueLine = '#60a5fa';
-function makeLineChart(canvasId, datasets, maxVal=null) {
+
+function makeLineChart(canvasId, datasets, maxVal = null) {
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
+
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: '#9fb5ca' } } },
+    plugins: {
+      legend: {
+        labels: { color: '#9fb5ca' }
+      }
+    },
     scales: {
-      x: { ticks: { color: '#9fb5ca' }, grid: { color: 'rgba(255,255,255,0.06)' } },
-      y: { ticks: { color: '#9fb5ca' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+      x: {
+        ticks: { color: '#9fb5ca' },
+        grid: { color: 'rgba(255,255,255,0.06)' }
+      },
+      y: {
+        ticks: { color: '#9fb5ca' },
+        grid: { color: 'rgba(255,255,255,0.06)' }
+      }
     }
   };
-  if (maxVal !== null) options.scales.y.min = 0, options.scales.y.max = maxVal;
-  new Chart(ctx, { type: 'line', data: { labels: labels, datasets: datasets }, options: options });
+
+  if (maxVal !== null) {
+    options.scales.y.min = 0;
+    options.scales.y.max = maxVal;
+  }
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: datasets
+    },
+    options: options
+  });
 }
-makeLineChart('cpuChart', [{ label: 'CPU %', data: cpuData, tension: 0.25, fill: true, borderColor: accent, backgroundColor: accentSoft }], 100);
-makeLineChart('ramChart', [{ label: 'RAM %', data: ramData, tension: 0.25, fill: true, borderColor: accent, backgroundColor: accentSoft }], 100);
-makeLineChart('tempChart', [{ label: 'CPU Temp °C', data: tempData, tension: 0.25, fill: true, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.16)' }], 120);
+
+makeLineChart('cpuChart', [
+  {
+    label: 'CPU %',
+    data: cpuData,
+    tension: 0.25,
+    fill: true,
+    borderColor: accent,
+    backgroundColor: accentSoft
+  }
+], 100);
+
+makeLineChart('ramChart', [
+  {
+    label: 'RAM %',
+    data: ramData,
+    tension: 0.25,
+    fill: true,
+    borderColor: accent,
+    backgroundColor: accentSoft
+  }
+], 100);
+
+makeLineChart('tempChart', [
+  {
+    label: 'CPU Temp °C',
+    data: tempData,
+    tension: 0.25,
+    fill: true,
+    borderColor: '#fbbf24',
+    backgroundColor: 'rgba(251,191,36,0.16)'
+  }
+], 120);
+
 makeLineChart('netChart', [
-  { label: 'Up B/s', data: upData, tension: 0.25, fill: true, borderColor: accent, backgroundColor: accentSoft },
-  { label: 'Down B/s', data: downData, tension: 0.25, fill: true, borderColor: blueLine, backgroundColor: 'rgba(96,165,250,0.14)' }
+  {
+    label: 'Up B/s',
+    data: upData,
+    tension: 0.25,
+    fill: true,
+    borderColor: accent,
+    backgroundColor: accentSoft
+  },
+  {
+    label: 'Down B/s',
+    data: downData,
+    tension: 0.25,
+    fill: true,
+    borderColor: blueLine,
+    backgroundColor: 'rgba(96,165,250,0.14)'
+  }
 ]);
 </script>
+
 {% endblock %}

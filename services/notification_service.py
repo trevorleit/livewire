@@ -14,6 +14,7 @@ def _log(
     related_rule_id=None,
     notification_type="manual",
     subject="",
+    conn=None,
 ):
     details = {}
     if detail:
@@ -29,10 +30,17 @@ def _log(
         related_alert_id=related_alert_id,
         related_rule_id=related_rule_id,
         details=details or None,
+        conn=conn,
     )
 
 
-def _send(subject, message, related_alert_id=None, related_rule_id=None, notification_type="manual"):
+def _send(
+    subject,
+    message,
+    related_alert_id=None,
+    related_rule_id=None,
+    notification_type="manual",
+):
     settings = fetch_settings()
 
     if get_bool_setting(settings, "notifications_enable_discord", False):
@@ -117,10 +125,19 @@ def handle_alert_notification(*args, **kwargs):
     severity = kwargs.get("severity", "warning")
     message = kwargs.get("message", "")
 
+    conn = None
+
     if args:
         positional = list(args)
+
+        # If first positional arg is a DB cursor, keep its connection
         if positional and hasattr(positional[0], "execute"):
+            try:
+                conn = positional[0].connection
+            except Exception:
+                conn = None
             positional = positional[1:]
+
         if len(positional) >= 1 and not kwargs.get("machine_label"):
             machine_label = positional[0]
         if len(positional) >= 2 and not kwargs.get("alert_type"):
@@ -152,6 +169,7 @@ def handle_alert_notification(*args, **kwargs):
             related_rule_id=related_rule_id,
             notification_type="alert_resolved",
             subject=f"LiveWire Alert Resolved: {alert_type}",
+            conn=conn,
         )
         return
 
@@ -173,6 +191,7 @@ def handle_alert_notification(*args, **kwargs):
         related_rule_id=related_rule_id,
         notification_type="alert_opened",
         subject=f"LiveWire Alert Opened: {alert_type}",
+        conn=conn,
     )
 
 

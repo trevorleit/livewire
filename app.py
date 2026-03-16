@@ -1,5 +1,5 @@
+import os
 from flask import Flask
-
 from database import init_db, ensure_rc_schema
 from routes.dashboard import dashboard_bp
 from routes.machines import machines_bp
@@ -29,10 +29,24 @@ def create_app():
         template_folder="templates",
     )
 
+    # ---------------------------------------------------------
+    # SECRET KEY (required for sessions, flash(), cookies)
+    # ---------------------------------------------------------
+    app.config["SECRET_KEY"] = os.environ.get(
+        "LIVEWIRE_SECRET_KEY",
+        "livewire-dev-secret-key"
+    )
+
+    # ---------------------------------------------------------
+    # Database + migrations
+    # ---------------------------------------------------------
     ensure_rc_schema()
     init_db()
     init_phase10_migrations()
 
+    # ---------------------------------------------------------
+    # Blueprints
+    # ---------------------------------------------------------
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(machines_bp)
     app.register_blueprint(alerts_bp)
@@ -44,6 +58,9 @@ def create_app():
     app.register_blueprint(response_center_bp)
     app.register_blueprint(automation_bp)
 
+    # ---------------------------------------------------------
+    # Template helpers
+    # ---------------------------------------------------------
     @app.context_processor
     def inject_helpers():
         runtime_settings = get_runtime_settings()
@@ -57,6 +74,9 @@ def create_app():
             "max_top_processes": runtime_settings["max_top_processes"],
         }
 
+    # ---------------------------------------------------------
+    # Debug route
+    # ---------------------------------------------------------
     @app.route("/debug-static")
     def debug_static():
         return {
@@ -68,7 +88,14 @@ def create_app():
     return app
 
 
+# ---------------------------------------------------------
+# Create app
+# ---------------------------------------------------------
 app = create_app()
 
+
+# ---------------------------------------------------------
+# Run server
+# ---------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
