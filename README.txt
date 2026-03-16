@@ -1,1 +1,0 @@
-Extract into C:\\xampp\\htdocs\\livewire and replace services\\remediation_service.py\nThen run: python app.py\n

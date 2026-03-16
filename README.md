@@ -1,433 +1,338 @@
-# LiveWire
+# ⚡ LiveWire
 
-**LiveWire** is a lightweight internal infrastructure monitoring and
-response platform designed to monitor machines, detect system issues,
-generate alerts, and execute automated remediation or remote commands.
+<p align="center">
+  <img src="static/img/LiveWire_logo.png" width="260" alt="LiveWire Logo">
+</p>
 
-LiveWire is built for **small‑to‑medium internal environments, labs, and
-homelabs** where large monitoring stacks such as Nagios, Zabbix, or
-Datadog are unnecessary.
+<p align="center">
+<b>Lightweight Infrastructure Monitoring & Automated Response Platform</b>
+</p>
 
-It combines:
+<p align="center">
+Real-time telemetry • alert detection • automation • remote command execution
+</p>
 
--   Machine telemetry monitoring
--   Alert detection
--   Automated remediation
--   Remote command execution
--   Notification delivery
--   Operational visibility dashboards
+<p align="center">
 
-All inside a **single Python Flask application**.
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![Flask](https://img.shields.io/badge/framework-flask-lightgrey)
+![Status](https://img.shields.io/badge/status-active%20development-orange)
+![License](https://img.shields.io/badge/license-learning%20project-green)
 
-------------------------------------------------------------------------
+</p>
+
+---
 
 # Overview
 
-LiveWire monitors machines running the LiveWire agent and collects:
+**LiveWire** is a lightweight infrastructure monitoring and response platform designed for internal networks, homelabs, and small operational environments.
 
--   CPU usage
--   RAM usage
--   Disk usage
--   Network throughput
--   Running processes
--   Service states
--   System uptime
--   Machine connectivity status
+It provides a centralized dashboard that monitors machines running a lightweight agent and enables administrators to:
 
-Incoming telemetry is evaluated against configurable thresholds. When a
-threshold is exceeded LiveWire can:
+* Monitor system health
+* Detect operational issues
+* Trigger automated remediation
+* Execute remote commands
+* Track events and alerts in real time
 
-1.  Generate an alert
-2.  Notify operators
-3.  Execute remediation rules
-4.  Queue remote commands
-5.  Record events and metrics
+LiveWire is designed to be:
 
-------------------------------------------------------------------------
+• Simple to deploy
+• Lightweight and fast
+• Automation-focused
+• Easy to extend
 
-# Core Architecture
+---
 
-Agent → API → Database → Alert Engine → Remediation → Notifications →
+# 🚧 Project Status
+
+**LiveWire is currently under active development.**
+
+Features are continuously being improved and expanded.
+Expect frequent updates, new capabilities, and architectural refinements.
+
+This repository represents a **working development build**.
+
+---
+
+# Dashboard Preview
+
+<p align="center">
+  <img src="static/images/dashboardview.jpg" width="900">
+</p>
+
+The dashboard provides real-time operational visibility including:
+
+* machine health
+* system telemetry
+* alerts
+* command activity
+* automation status
+* event history
+
+---
+
+# Architecture
+
+<p align="center">
+  <img src="static/images/workflow.png" width="800">
+</p>
+
+LiveWire follows a simple service architecture built around lightweight agents reporting telemetry to a centralized Flask application.
+
+Core system flow:
+
+```
+Agent
+  ↓
+API
+  ↓
+Database
+  ↓
+Alert Engine
+  ↓
+Automation Engine
+  ↓
+Command Center
+  ↓
 Dashboard
+```
 
-### Agent
+---
 
-A lightweight monitoring agent runs on each machine and periodically
-sends telemetry data to the LiveWire server.
+# Key Features
 
-### API
+### Infrastructure Monitoring
 
-Flask REST endpoints accept telemetry data and provide queued commands
-to agents.
+LiveWire agents collect telemetry including:
 
-### Database
+* CPU usage
+* Memory usage
+* Disk utilization
+* Network throughput
+* Running processes
+* Service states
+* System uptime
+* Machine connectivity status
 
-SQLite is currently used for persistence.
+Telemetry updates automatically appear in the dashboard.
 
-Tables include:
+---
 
--   machines
--   alerts
--   events
--   telemetry
--   commands
--   automation_jobs
--   remediation_rules
--   notification_logs
--   settings
+### Alert Detection
 
-### Alert Engine
+Incoming telemetry is evaluated against configurable thresholds.
 
-The alert engine evaluates system state against configured thresholds.
+When thresholds are exceeded LiveWire can:
 
-Example triggers:
+* generate alerts
+* log events
+* trigger automation rules
+* queue remediation commands
 
--   CPU above threshold
--   RAM above threshold
--   Disk above threshold
--   Service stopped
--   Machine offline
+---
 
-### Remediation Engine
+### Automation Engine
 
-Automated rules can respond to alerts.
+Automation rules allow the system to automatically respond to issues.
 
 Example:
 
-If `service_down` → restart service.
+```
+IF CPU > 95% for 5 minutes
+THEN restart_service
+```
 
-### Command Queue
+Automation enables environments to **self-correct common operational problems**.
 
-Operators can manually queue commands to machines. Agents periodically
-poll the server and execute approved commands.
+---
 
-### Notification System
+### Remote Command Center
 
-Alerts can trigger notifications through:
+Administrators can issue commands directly to monitored machines.
 
--   Discord webhook
--   Email (SMTP)
+Examples:
 
-------------------------------------------------------------------------
+```
+restart_service
+stop_process
+reboot_machine
+```
 
-# Features
+Commands are queued and executed by the LiveWire agent.
 
-## Dashboard
-
-Provides a real‑time overview of infrastructure.
-
-Displays:
-
--   Total machines
--   Online machines
--   Offline machines
--   Active alerts
--   Automation job status
-
-Machine cards display:
-
--   Hostname
--   IP address
--   Logged‑in user
--   CPU usage
--   RAM usage
--   Network throughput
--   GPU information
--   Temperature
--   Last seen timestamp
-
-Usage metrics are displayed with **meter bars** and charts.
-
-------------------------------------------------------------------------
-
-## Alerts
-
-Alerts are generated automatically when thresholds are exceeded.
-
-Each alert includes:
-
--   Status (OPEN / RESOLVED)
--   Severity
--   Machine
--   Alert notification_type
--   Message
--   Notification count
--   Remediation count
--   Timestamps
-
-Common alert types:
-
--   cpu_high
--   ram_high
--   disk_high
--   service_down
--   machine_offline
-
-------------------------------------------------------------------------
-
-## Events
-
-The Events page provides a detailed activity log of system events
-including:
-
--   Service monitoring events
--   Automation runs
--   Agent telemetry changes
--   System alerts
-
-This serves as a system audit trail.
-
-------------------------------------------------------------------------
-
-## Remote Actions
-
-Operators can queue commands to machines.
-
-Supported actions include:
-
--   Restart service
--   Stop service
--   Kill process
--   Reboot system
-
-Commands enter a **pending queue** until approved and executed by
-agents.
-
-------------------------------------------------------------------------
-
-## Automation
-
-Automation allows scheduled operational tasks.
-
-Components:
-
-### Machine Groups
-
-Machines can be grouped for easier automation targeting.
-
-### Scheduled Jobs
-
-Jobs can execute commands automatically.
-
-Example tasks:
-
--   Restart services nightly
--   Clean temporary files
--   Rotate logs
-
-------------------------------------------------------------------------
-
-## Response Center
-
-The Response Center manages automated remediation rules triggered by
-alerts.
-
-Example rule:
-
-Alert Type: `service_down`\
-Action: `restart service Apache2.4`
-
-Rules may include execution delays and conditions.
-
-------------------------------------------------------------------------
-
-## Inventory
-
-The inventory system provides machine metadata.
-
-Fields include:
-
--   Display name
--   Role
--   Location
--   Notes
-
-This allows better organization of monitored machines.
-
-------------------------------------------------------------------------
-
-## Settings
-
-System behavior is configurable through the Settings panel.
-
-### Monitoring Thresholds
-
--   CPU alert threshold
--   RAM alert threshold
--   Disk alert threshold
--   Temperature alert threshold
--   Offline detection timeout
-
-### Dashboard Behavior
-
--   Auto refresh interval
--   Top processes displayed
-
-### Notification Settings
-
--   Discord webhook
--   Email recipients
--   SMTP server configuration
-
-Test notifications can be sent from the interface.
-
-------------------------------------------------------------------------
-
-# User Interface
-
-LiveWire uses a **dark monitoring dashboard theme** designed for
-operational environments.
-
-UI features:
-
--   Card‑based layout
--   Real‑time metrics
--   Meter bars for percentage metrics
--   Color‑coded alerts
--   Responsive layout
-
-Primary accent color:
-
-`#00cc66`
-
-Used across:
-
--   charts
--   meter bars
--   highlights
--   buttons
-
-------------------------------------------------------------------------
-
-# Technology Stack
-
-Backend
-
--   Python
--   Flask
--   SQLite
-
-Frontend
-
--   HTML
--   CSS
--   Jinja Templates
--   JavaScript
-
-Communication
-
--   REST API
--   JSON telemetry payloads
-
-------------------------------------------------------------------------
+---
 
 # Project Structure
 
-    livewire/
-    │
-    ├── app.py
-    ├── database.py
-    │
-    ├── routes/
-    │   ├── dashboard.py
-    │   ├── alerts.py
-    │   ├── events.py
-    │   ├── machines.py
-    │   ├── inventory.py
-    │   ├── automation.py
-    │   ├── actions.py
-    │   ├── response_center.py
-    │   ├── settings.py
-    │   └── api.py
-    │
-    ├── services/
-    │   ├── alert_engine.py
-    │   ├── remediation_service.py
-    │   ├── notification_service.py
-    │   ├── scheduler_service.py
-    │   ├── runtime_settings.py
-    │   ├── helpers.py
-    │   └── phase10_migrations.py
-    │
-    ├── templates/
-    ├── static/
-    └── README.md
+```
+livewire/
+│
+├── app.py
+├── config.py
+├── database.py
+├── requirements.txt
+├── README.md
+│
+├── agents/
+│   └── agent.py
+│
+├── routes/
+│   ├── dashboard.py
+│   ├── machines.py
+│   ├── alerts.py
+│   ├── actions.py
+│   ├── automation.py
+│   └── api.py
+│
+├── services/
+│   ├── alert_engine.py
+│   ├── command_center.py
+│   ├── group_service.py
+│   ├── runtime_settings.py
+│   └── helpers.py
+│
+├── templates/
+├── static/
+└── instance/
+```
 
-------------------------------------------------------------------------
+---
 
-# Running LiveWire
+# Installation
 
-### Install dependencies
+### Clone the Repository
 
-    pip install flask requests
+```
+git clone https://github.com/YOURUSERNAME/livewire.git
+cd livewire
+```
 
-### Run the server
+---
 
-    python app.py
+### Create Virtual Environment
 
-Default server address:
+Windows
 
-    http://localhost:5000
+```
+python -m venv venv
+venv\Scripts\activate
+```
 
-------------------------------------------------------------------------
+Linux / Mac
 
-# Development Status
+```
+python3 -m venv venv
+source venv/bin/activate
+```
 
-Current phase:
+---
 
-**Feature complete -- entering stabilization and testing phase**
+### Install Dependencies
 
-Working modules:
+```
+pip install -r requirements.txt
+```
 
--   Dashboard
--   Alerts
--   Events
--   Remote Actions
--   Automation framework
--   Response Center
--   Notifications
--   Inventory management
--   Runtime settings
+---
 
-------------------------------------------------------------------------
+### Start the LiveWire Server
 
-# Upcoming Work
+```
+python app.py
+```
 
-## Final Development
+The dashboard will start at:
 
--   UI polish across pages
--   Scheduler UX improvements
--   Service detection improvements
--   Additional automation rule options
+```
+http://localhost:5000
+```
 
-## Testing Phase
+---
 
-Testing will include:
+# Running the LiveWire Agent
 
--   Agent connectivity tests
--   Alert generation validation
--   Notification delivery verification
--   Remediation execution validation
--   Command queue behavior
--   Offline detection reliability
--   Performance tests
+The agent collects telemetry from machines and sends it to the LiveWire server.
 
-------------------------------------------------------------------------
+Open:
 
-# Long Term Vision
+```
+agents/agent.py
+```
 
-Possible future improvements:
+Set the server and API key:
 
--   Role‑based access control
--   Multi‑tenant support
--   Plugin monitoring modules
--   Container monitoring
--   Advanced alert escalation
--   Distributed monitoring nodes
--   Agent auto‑updates
+```python
+SERVER_URL = "http://your-server-ip:5000"
+API_KEY = "your-api-key"
+```
 
-------------------------------------------------------------------------
+Then start the agent:
+
+```
+python agents/agent.py
+```
+
+The machine will automatically appear in the LiveWire dashboard.
+
+---
+
+# Security
+
+Agents authenticate using an API key.
+
+All telemetry and command requests require valid authentication.
+
+---
+
+# Database
+
+LiveWire uses SQLite by default.
+
+Database location:
+
+```
+instance/dashboard.db
+```
+
+Future versions may support additional database backends.
+
+---
+
+# Development
+
+Run LiveWire in development mode:
+
+```
+python app.py
+```
+
+Flask automatically reloads when code changes.
+
+---
+
+# Future Development
+
+Planned improvements include:
+
+* WebSocket real-time updates
+* notification integrations
+* advanced alert rules
+* role-based authentication
+* automation workflow builder
+* historical metrics visualization
+* agent auto-update capability
+* plugin architecture
+
+---
+
+# Author
+
+**Trevor Elliott**
+Green Tee Design
+
+---
 
 # License
 
-Internal / private project.
+This project is provided as a learning and experimentation platform for infrastructure automation and monitoring systems.
