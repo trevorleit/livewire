@@ -120,10 +120,33 @@
 
   <div class="grid">
     {% for machine in machines %}
+      {% set gpu_count = machine.gpu_count or 0 %}
+      {% set primary_gpu_name = machine.primary_gpu_name %}
+      {% set primary_gpu_vendor = machine.primary_gpu_vendor|upper if machine.primary_gpu_vendor else 'UNKNOWN' %}
+      {% set primary_gpu_source = machine.primary_gpu_source or 'agent' %}
+      {% set primary_gpu_load = machine.primary_gpu_load if machine.primary_gpu_load is not none else none %}
+      {% set primary_gpu_temp = machine.primary_gpu_temp if machine.primary_gpu_temp is not none else none %}
+      {% set primary_gpu_mem_used = machine.primary_gpu_mem_used if machine.primary_gpu_mem_used is not none else none %}
+      {% set primary_gpu_mem_total = machine.primary_gpu_mem_total if machine.primary_gpu_mem_total is not none else none %}
+      {% set primary_gpu_mem_used_gb = ((primary_gpu_mem_used / 1024) | round(1)) if primary_gpu_mem_used is not none else none %}
+      {% set primary_gpu_mem_total_gb = ((primary_gpu_mem_total / 1024) | round(1)) if primary_gpu_mem_total is not none else none %}
+      {% set gpu_vram_percent = ((primary_gpu_mem_used / primary_gpu_mem_total) * 100) if primary_gpu_mem_used is not none and primary_gpu_mem_total else 0 %}
+      {% set freshness = freshness_label(machine.last_seen) %}
+      {% set freshness_class = freshness_badge_class(machine.last_seen) %}
+      {% set freshness_state_value = freshness_state(machine.last_seen) %}
+      {% set source_class = 'source-generic' %}
+      {% if 'nvidia-smi' in primary_gpu_source %}
+        {% set source_class = 'source-nvidia' %}
+      {% elif 'lhm' in primary_gpu_source %}
+        {% set source_class = 'source-lhm' %}
+      {% elif 'wmi' in primary_gpu_source %}
+        {% set source_class = 'source-wmi' %}
+      {% endif %}
+
     <a class="card-link" href="{{ url_for('machines.machine_detail', machine_id=machine.id) }}">
-      <article class="card {{ 'online' if machine.is_online else 'offline' }}">
+      <article class="card dashboard-machine-card {{ 'online' if machine.is_online else 'offline' }} {{ 'machine-fresh' if freshness_state_value == 'fresh' else ('machine-aging' if freshness_state_value == 'aging' else ('machine-stale' if freshness_state_value == 'stale' else 'machine-unknown')) }}">
         <div class="card-top">
-          <div>
+          <div class="card-title-wrap">
             <h3>{{ machine.display_name or machine.hostname }}</h3>
             <div class="muted">{{ machine.hostname }} • {{ machine.os_name or 'Unknown OS' }}</div>
           </div>
@@ -140,6 +163,10 @@
                 {{ machine.open_alert_count }} alert{{ '' if machine.open_alert_count == 1 else 's' }}
               </span>
             {% endif %}
+            {% if gpu_count > 1 %}
+              <span class="status-pill pill-muted">{{ gpu_count }} GPUs</span>
+            {% endif %}
+            <span class="status-pill {{ freshness_class }}">{{ freshness }}</span>
             <span class="status-pill {{ 'pill-online' if machine.is_online else 'pill-offline' }}">
               {{ 'Online' if machine.is_online else 'Offline' }}
             </span>
@@ -187,14 +214,69 @@
             <strong>{{ format_rate_bps(machine.net_down_bps) }}</strong>
           </div>
 
-          <div class="stat-box">
-            <span class="stat-label">GPU</span>
-            <strong>{{ "%.1f"|format(machine.gpu_load or 0) ~ '%' if machine.gpu_name else 'N/A' }}</strong>
+          <div class="stat-box gpu-summary-box gpu-summary-wide">
+            <div class="gpu-summary-header">
+              <span class="stat-label">GPU</span>
+              {% if primary_gpu_name %}
+                <span class="source-pill {{ source_class }}">{{ primary_gpu_source }}</span>
+              {% endif %}
+            </div>
+
+            {% if primary_gpu_name %}
+              <strong class="gpu-summary-name">{{ primary_gpu_name }}</strong>
+              <div class="gpu-summary-meta">
+                <span class="status-pill gpu-vendor-pill">{{ primary_gpu_vendor }}</span>
+                {% if gpu_count > 1 %}
+                  <span class="gpu-mini-text">{{ gpu_count }} GPUs detected</span>
+                {% endif %}
+              </div>
+            {% else %}
+              <strong>Unknown</strong>
+              <div class="gpu-mini-text">No GPU telemetry yet</div>
+            {% endif %}
           </div>
 
           <div class="stat-box">
-            <span class="stat-label">Temp</span>
-            <strong>{{ "%.1f"|format(machine.cpu_temp or 0) if machine.cpu_temp is not none else 'N/A' }}</strong>
+            <span class="stat-label">GPU Load</span>
+            <strong>
+              {% if primary_gpu_load is not none %}
+                {{ "%.1f"|format(primary_gpu_load) }}%
+              {% else %}
+                Unknown
+              {% endif %}
+            </strong>
+          </div>
+
+          <div class="stat-box">
+            <span class="stat-label">GPU Temp</span>
+            <strong>
+              {% if primary_gpu_temp is not none %}
+                {{ "%.1f °C"|format(primary_gpu_temp) }}
+              {% else %}
+                Unknown
+              {% endif %}
+            </strong>
+          </div>
+
+          <div class="stat-box gpu-summary-wide">
+            <div class="stat-caption">
+              <span class="stat-label">VRAM</span>
+              <strong>
+                {% if primary_gpu_mem_total_gb is not none %}
+                  {{ "%.1f"|format(primary_gpu_mem_used_gb or 0) }} / {{ "%.1f"|format(primary_gpu_mem_total_gb) }} GB
+                {% else %}
+                  Unknown
+                {% endif %}
+              </strong>
+            </div>
+            <div class="meter small">
+              <div class="meter-fill {% if gpu_vram_percent >= 90 %}danger{% elif gpu_vram_percent >= 75 %}warning{% endif %}" style="width: {{ gpu_vram_percent if primary_gpu_mem_total is not none else 0 }}%"></div>
+            </div>
+          </div>
+
+          <div class="stat-box">
+            <span class="stat-label">CPU Temp</span>
+            <strong>{{ "%.1f °C"|format(machine.cpu_temp or 0) if machine.cpu_temp is not none else 'N/A' }}</strong>
           </div>
         </div>
 
@@ -307,5 +389,137 @@
     </div>
   </div>
 </section>
+
+<style>
+.dashboard-machine-card .stats-grid{
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.dashboard-machine-card .card-top{
+  gap: 16px;
+}
+
+.dashboard-machine-card.machine-fresh{
+  box-shadow:
+    0 0 0 1px rgba(0,204,102,.22),
+    0 12px 30px rgba(0,204,102,.10);
+}
+
+.dashboard-machine-card.machine-aging{
+  box-shadow:
+    0 0 0 1px rgba(251,191,36,.22),
+    0 12px 30px rgba(251,191,36,.08);
+}
+
+.dashboard-machine-card.machine-stale{
+  box-shadow:
+    0 0 0 1px rgba(251,113,133,.22),
+    0 12px 30px rgba(251,113,133,.08);
+}
+
+.dashboard-machine-card.machine-unknown{
+  box-shadow:
+    0 0 0 1px rgba(139,155,184,.18),
+    0 12px 30px rgba(139,155,184,.06);
+}
+
+.card-title-wrap{
+  min-width: 0;
+}
+
+.gpu-summary-box{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gpu-summary-wide{
+  grid-column: span 2;
+}
+
+.gpu-summary-header{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gpu-summary-name{
+  display: block;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.gpu-summary-meta{
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gpu-mini-text{
+  color: #8ea5bc;
+  font-size: 0.78rem;
+}
+
+.gpu-vendor-pill{
+  background: rgba(0,204,102,0.12);
+  border: 1px solid rgba(0,204,102,0.28);
+  color: #b8ffd7;
+}
+
+.source-pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.05);
+  color: #d7e4f3;
+  white-space: nowrap;
+}
+
+.source-lhm{
+  background: rgba(0,204,102,0.10);
+  border-color: rgba(0,204,102,0.28);
+  color: #b8ffd7;
+}
+
+.source-wmi{
+  background: rgba(96,165,250,0.12);
+  border-color: rgba(96,165,250,0.26);
+  color: #cfe2ff;
+}
+
+.source-nvidia{
+  background: rgba(0,204,102,0.12);
+  border-color: rgba(0,204,102,0.30);
+  color: #b8ffd7;
+}
+
+.source-generic{
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.08);
+  color: #d7e4f3;
+}
+
+@media (max-width: 980px){
+  .gpu-summary-wide{
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 700px){
+  .gpu-summary-header{
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+</style>
 
 {% endblock %}

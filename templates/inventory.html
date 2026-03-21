@@ -1,29 +1,157 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel">
-  <div class="panel-header">
-    <h2>Inventory</h2>
-    <p>Label your machines and add internal notes before scaling LiveWire to the rest of the network.</p>
+
+<section class="panel inventory-shell">
+  <div class="panel-header inventory-header">
+    <div>
+      <div class="eyebrow">Asset Labeling & Organization</div>
+      <h2>Inventory</h2>
+      <p>Label your machines and add internal notes before scaling LiveWire to the rest of the network.</p>
+    </div>
+
+    <div class="inventory-header-badges">
+      <span class="status-pill pill-muted">{{ machines|length }} machine{{ '' if machines|length == 1 else 's' }}</span>
+    </div>
   </div>
+
   <div class="inventory-list">
     {% for machine in machines %}
-    <form method="post" class="inventory-card">
-      <input type="hidden" name="machine_id" value="{{ machine.id }}">
-      <div class="inventory-title">
-        <h3>{{ machine.display_name or machine.hostname }}</h3>
-        <div class="muted">{{ machine.hostname }} • {{ machine.ip_address or 'No IP' }}</div>
-      </div>
-      <div class="settings-grid">
-        <label class="field"><span>Display name</span><input type="text" name="display_name" value="{{ machine.display_name or '' }}"></label>
-        <label class="field"><span>Role</span><input type="text" name="machine_role" value="{{ machine.machine_role or '' }}"></label>
-        <label class="field"><span>Location</span><input type="text" name="location" value="{{ machine.location or '' }}"></label>
-        <label class="field field-wide"><span>Notes</span><input type="text" name="notes" value="{{ machine.notes or '' }}"></label>
-      </div>
-      <div class="form-actions"><button type="submit" class="button-primary">Save Machine</button></div>
-    </form>
+      <form method="post" class="inventory-card inventory-machine-card">
+        <input type="hidden" name="machine_id" value="{{ machine.id }}">
+
+        <div class="inventory-title">
+          <div>
+            <h3>{{ machine.display_name or machine.hostname }}</h3>
+            <div class="muted">
+              {{ machine.hostname }} • {{ machine.ip_address or 'No IP' }} • {{ machine.os_name or 'Unknown OS' }}
+            </div>
+          </div>
+
+          <div class="card-badges">
+            {% if machine.machine_role %}
+              <span class="status-pill pill-muted">{{ machine.machine_role }}</span>
+            {% endif %}
+            <span class="status-pill {{ 'pill-online' if machine.is_online else 'pill-offline' }}">
+              {{ 'Online' if machine.is_online else 'Offline' }}
+            </span>
+          </div>
+        </div>
+
+        <div class="inventory-meta-grid">
+          <div class="stat-box">
+            <span class="stat-label">Current User</span>
+            <strong>{{ machine.current_user or 'N/A' }}</strong>
+          </div>
+
+          <div class="stat-box">
+            <span class="stat-label">Location</span>
+            <strong>{{ machine.location or 'Unassigned' }}</strong>
+          </div>
+
+          <div class="stat-box">
+            <span class="stat-label">Last Seen</span>
+            <strong>{{ format_last_seen(machine.last_seen) }}</strong>
+          </div>
+
+          <div class="stat-box">
+            <span class="stat-label">Hostname</span>
+            <strong>{{ machine.hostname }}</strong>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <label class="field">
+            <span>Display name</span>
+            <input type="text" name="display_name" value="{{ machine.display_name or '' }}" placeholder="Reception PC">
+            <small class="helper-text">Operator-friendly name used across the UI.</small>
+          </label>
+
+          <label class="field">
+            <span>Role</span>
+            <input type="text" name="machine_role" value="{{ machine.machine_role or '' }}" placeholder="workstation, server, kiosk">
+            <small class="helper-text">Useful for grouping and remediation targeting.</small>
+          </label>
+
+          <label class="field">
+            <span>Location</span>
+            <input type="text" name="location" value="{{ machine.location or '' }}" placeholder="Front office, rack A, lab">
+            <small class="helper-text">Helps operators locate the device quickly.</small>
+          </label>
+
+          <label class="field field-wide">
+            <span>Notes</span>
+            <textarea name="notes" rows="3" placeholder="Owner, hardware notes, maintenance details, or deployment notes">{{ machine.notes or '' }}</textarea>
+            <small class="helper-text">Internal notes for troubleshooting, ownership, or operational context.</small>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button-primary">Save Machine</button>
+        </div>
+      </form>
     {% else %}
-    <div class="empty-state"><h3>No machines found.</h3><p>Wait for the agent to check in.</p></div>
+      <div class="empty-state">
+        <h3>No machines found.</h3>
+        <p>Wait for the agent to check in.</p>
+      </div>
     {% endfor %}
   </div>
 </section>
+
+<style>
+.inventory-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.inventory-header-badges{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.inventory-machine-card{
+  display:grid;
+  gap:16px;
+}
+
+.inventory-meta-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
+  gap:12px;
+}
+
+.inventory-machine-card textarea{
+  min-height:96px;
+  resize:vertical;
+  background:#091427;
+  border:1px solid var(--border);
+  color:var(--text);
+  border-radius:12px;
+  padding:12px 14px;
+  font-size:15px;
+  font-family:Inter, Arial, Helvetica, sans-serif;
+}
+
+.inventory-machine-card textarea:focus{
+  outline:none;
+  border-color:rgba(0,204,102,.55);
+  box-shadow:0 0 0 3px rgba(0,204,102,.10);
+}
+
+@media (max-width: 860px){
+  .inventory-header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .inventory-header-badges{
+    justify-content:flex-start;
+  }
+}
+</style>
+
 {% endblock %}

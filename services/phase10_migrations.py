@@ -16,7 +16,22 @@ PHASE10_SETTINGS = {
 }
 
 
+def _table_exists(cur, table_name):
+    row = cur.execute(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND name = ?
+        """,
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
 def _ensure_column(cur, table_name, column_name, definition):
+    if not _table_exists(cur, table_name):
+        return
+
     existing_columns = {
         row["name"] for row in cur.execute(f"PRAGMA table_info({table_name})").fetchall()
     }
@@ -25,6 +40,9 @@ def _ensure_column(cur, table_name, column_name, definition):
 
 
 def _seed_settings(cur):
+    if not _table_exists(cur, "settings"):
+        return
+
     seed = dict(DEFAULT_SETTINGS)
     seed.update(PHASE10_SETTINGS)
 
@@ -50,27 +68,29 @@ def _seed_settings(cur):
 
 def init_phase10_migrations():
     conn = get_db()
-    cur = conn.cursor()
+    try:
+        cur = conn.cursor()
 
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS remediation_runs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            related_rule_id INTEGER,
-            machine_id INTEGER,
-            related_alert_id INTEGER,
-            status TEXT,
-            action_taken TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS remediation_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                related_rule_id INTEGER,
+                machine_id INTEGER,
+                related_alert_id INTEGER,
+                status TEXT,
+                action_taken TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
         )
-        """
-    )
 
-    _ensure_column(cur, "remote_commands", "source", "TEXT")
-    _ensure_column(cur, "remote_commands", "trigger_alert_id", "INTEGER")
-    _ensure_column(cur, "remote_commands", "scheduled_job_id", "INTEGER")
+        _ensure_column(cur, "remote_commands", "source", "TEXT")
+        _ensure_column(cur, "remote_commands", "trigger_alert_id", "INTEGER")
+        _ensure_column(cur, "remote_commands", "scheduled_job_id", "INTEGER")
 
-    _seed_settings(cur)
+        _seed_settings(cur)
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()

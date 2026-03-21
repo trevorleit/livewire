@@ -1,5 +1,6 @@
 import os
 from flask import Flask
+
 from database import init_db, ensure_rc_schema
 from routes.dashboard import dashboard_bp
 from routes.machines import machines_bp
@@ -15,9 +16,15 @@ from services.phase10_migrations import init_phase10_migrations
 from services.helpers import (
     bytes_to_gb,
     bytes_to_mb,
+    mb_to_gb,
     format_last_seen,
     format_uptime,
     format_rate_bps,
+    seconds_since,
+    is_stale,
+    freshness_state,
+    freshness_label,
+    freshness_badge_class,
 )
 from services.runtime_settings import get_runtime_settings
 
@@ -64,14 +71,27 @@ def create_app():
     @app.context_processor
     def inject_helpers():
         runtime_settings = get_runtime_settings()
+        offline_after_seconds = int(runtime_settings.get("offline_after_seconds", 90) or 90)
+        freshness_fresh_seconds = max(30, offline_after_seconds)
+        freshness_aging_seconds = max(freshness_fresh_seconds + 30, offline_after_seconds * 2)
+
         return {
             "bytes_to_gb": bytes_to_gb,
             "bytes_to_mb": bytes_to_mb,
+            "mb_to_gb": mb_to_gb,
             "format_uptime": format_uptime,
             "format_last_seen": format_last_seen,
             "format_rate_bps": format_rate_bps,
+            "seconds_since": seconds_since,
+            "is_stale": is_stale,
+            "freshness_state": freshness_state,
+            "freshness_label": freshness_label,
+            "freshness_badge_class": freshness_badge_class,
             "refresh_seconds": runtime_settings["refresh_seconds"],
             "max_top_processes": runtime_settings["max_top_processes"],
+            "offline_after_seconds": offline_after_seconds,
+            "freshness_fresh_seconds": freshness_fresh_seconds,
+            "freshness_aging_seconds": freshness_aging_seconds,
         }
 
     # ---------------------------------------------------------

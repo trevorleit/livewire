@@ -19,6 +19,13 @@ DEFAULT_SETTINGS = {
     "ram_alert_threshold": 90,
     "disk_alert_threshold": 90,
     "cpu_temp_alert_threshold": 85,
+    "enhanced_hwmon_enabled": "0",
+    "lhm_auto_install": "0",
+    "lhm_auto_start": "0",
+    "lhm_url": "http://127.0.0.1:8085/data.json",
+    "lhm_install_dir": r"C:\ProgramData\LiveWire\LibreHardwareMonitor",
+    "lhm_download_url": "",
+    "lhm_expected_sha256": "",
 }
 
 
@@ -141,11 +148,434 @@ def normalize_float(value: Any, default=None):
         return default
 
 
+def table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
+def column_exists(conn: sqlite3.Connection, table_name: str, column_name: str) -> bool:
+    if not table_exists(conn, table_name):
+        return False
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return any(row["name"] == column_name for row in rows)
+
+
+def ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, definition: str) -> None:
+    if table_exists(conn, table_name) and not column_exists(conn, table_name, column_name):
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
+
+
+# -------------------------------------------------------------------
+# Core LiveWire schema
+# -------------------------------------------------------------------
+
+def ensure_core_schema() -> None:
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS machines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                hostname TEXT UNIQUE NOT NULL,
+                display_name TEXT,
+                ip_address TEXT,
+                os_name TEXT,
+                current_user TEXT,
+                is_online INTEGER NOT NULL DEFAULT 0,
+                cpu_percent REAL DEFAULT 0,
+                ram_percent REAL DEFAULT 0,
+                ram_used INTEGER DEFAULT 0,
+                ram_total INTEGER DEFAULT 0,
+                disk_used INTEGER DEFAULT 0,
+                disk_total INTEGER DEFAULT 0,
+                disk_percent REAL DEFAULT 0,
+                net_up_bps REAL DEFAULT 0,
+                net_down_bps REAL DEFAULT 0,
+                cpu_temp REAL,
+                gpu_name TEXT,
+                gpu_load REAL,
+                gpu_temp REAL,
+                gpu_mem_used_mb REAL,
+                gpu_mem_total_mb REAL,
+                uptime_seconds INTEGER DEFAULT 0,
+                last_seen TEXT,
+                updated_at TEXT,
+                location TEXT,
+                machine_role TEXT,
+                notes TEXT
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER,
+                alert_type TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                message TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open',
+                is_resolved INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TEXT,
+                resolution_note TEXT,
+                FOREIGN KEY(machine_id) REFERENCES machines(id)
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS remote_commands (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER NOT NULL,
+                action_type TEXT NOT NULL,
+                payload_json TEXT,
+                status TEXT NOT NULL DEFAULT 'pending_approval',
+                result_text TEXT,
+                requested_by TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                approved_at TEXT,
+                completed_at TEXT,
+                source TEXT,
+                trigger_alert_id INTEGER,
+                scheduled_job_id INTEGER,
+                FOREIGN KEY(machine_id) REFERENCES machines(id)
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                cpu_percent REAL DEFAULT 0,
+                ram_percent REAL DEFAULT 0,
+                ram_used INTEGER DEFAULT 0,
+                ram_total INTEGER DEFAULT 0,
+                disk_used INTEGER DEFAULT 0,
+                disk_total INTEGER DEFAULT 0,
+                disk_percent REAL DEFAULT 0,
+                net_up_bps REAL DEFAULT 0,
+                net_down_bps REAL DEFAULT 0,
+                net_sent INTEGER DEFAULT 0,
+                net_recv INTEGER DEFAULT 0,
+                disk_read_bytes INTEGER DEFAULT 0,
+                disk_write_bytes INTEGER DEFAULT 0,
+                cpu_temp REAL,
+                current_user TEXT,
+                uptime_seconds INTEGER DEFAULT 0,
+                gpu_name TEXT,
+                gpu_load REAL,
+                gpu_temp REAL,
+                gpu_mem_used_mb REAL,
+                gpu_mem_total_mb REAL,
+                gpu_json TEXT,
+                FOREIGN KEY(machine_id) REFERENCES machines(id)
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS event_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER,
+                event_type TEXT,
+                severity TEXT,
+                message TEXT,
+                source TEXT,
+                extra_json TEXT,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(machine_id) REFERENCES machines(id)
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS machine_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                color_hex TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS machine_group_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id INTEGER NOT NULL,
+                machine_id INTEGER NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(group_id, machine_id),
+                FOREIGN KEY(group_id) REFERENCES machine_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY(machine_id) REFERENCES machines(id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scheduled_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_name TEXT,
+                description TEXT,
+                target_type TEXT NOT NULL,
+                target_id INTEGER NOT NULL,
+                action_type TEXT NOT NULL,
+                action_payload_json TEXT,
+                interval_minutes INTEGER NOT NULL DEFAULT 60,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                auto_approve INTEGER NOT NULL DEFAULT 0,
+                only_when_online INTEGER NOT NULL DEFAULT 0,
+                next_run_at TEXT,
+                last_run_at TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scheduled_job_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER NOT NULL,
+                status TEXT,
+                summary_text TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(job_id) REFERENCES scheduled_jobs(id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS drive_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                device TEXT,
+                mountpoint TEXT,
+                filesystem TEXT,
+                total_bytes INTEGER DEFAULT 0,
+                used_bytes INTEGER DEFAULT 0,
+                free_bytes INTEGER DEFAULT 0,
+                percent_used REAL DEFAULT 0,
+                FOREIGN KEY(machine_id) REFERENCES machines(id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS interface_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                interface_name TEXT,
+                is_up INTEGER DEFAULT 0,
+                speed_mbps INTEGER DEFAULT 0,
+                ip_address TEXT,
+                up_bps REAL DEFAULT 0,
+                down_bps REAL DEFAULT 0,
+                mtu INTEGER DEFAULT 0,
+                mac_address TEXT,
+                bytes_sent INTEGER DEFAULT 0,
+                bytes_recv INTEGER DEFAULT 0,
+                FOREIGN KEY(machine_id) REFERENCES machines(id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS service_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                service_name TEXT,
+                display_name TEXT,
+                status TEXT,
+                start_type TEXT,
+                username TEXT,
+                binpath TEXT,
+                FOREIGN KEY(machine_id) REFERENCES machines(id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS process_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                pid INTEGER,
+                process_name TEXT,
+                cpu_percent REAL DEFAULT 0,
+                memory_mb REAL DEFAULT 0,
+                memory_percent REAL DEFAULT 0,
+                category TEXT,
+                FOREIGN KEY(machine_id) REFERENCES machines(id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS software_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                name TEXT NOT NULL,
+                version TEXT,
+                publisher TEXT,
+                source TEXT,
+                install_date TEXT,
+                FOREIGN KEY(machine_id) REFERENCES machines(id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS inventory_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                machine_id INTEGER NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                cpu_model TEXT,
+                physical_cores INTEGER,
+                logical_cores INTEGER,
+                total_ram_bytes INTEGER DEFAULT 0,
+                boot_time_epoch REAL,
+                python_version TEXT,
+                machine_arch TEXT,
+                motherboard TEXT,
+                FOREIGN KEY(machine_id) REFERENCES machines(id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+            """
+        )
+
+        ensure_column(conn, "event_logs", "source", "TEXT")
+        ensure_column(conn, "event_logs", "extra_json", "TEXT")
+
+        ensure_column(conn, "remote_commands", "source", "TEXT")
+        ensure_column(conn, "remote_commands", "trigger_alert_id", "INTEGER")
+        ensure_column(conn, "remote_commands", "scheduled_job_id", "INTEGER")
+
+        ensure_column(conn, "alerts", "status", "TEXT DEFAULT 'open'")
+        ensure_column(conn, "alerts", "is_resolved", "INTEGER DEFAULT 0")
+        ensure_column(conn, "alerts", "resolved_at", "TEXT")
+        ensure_column(conn, "alerts", "resolution_note", "TEXT")
+
+        ensure_column(conn, "machines", "updated_at", "TEXT")
+        ensure_column(conn, "machines", "location", "TEXT")
+        ensure_column(conn, "machines", "machine_role", "TEXT")
+        ensure_column(conn, "machines", "notes", "TEXT")
+
+        ensure_column(conn, "snapshots", "uptime_seconds", "INTEGER DEFAULT 0")
+        ensure_column(conn, "snapshots", "gpu_name", "TEXT")
+        ensure_column(conn, "snapshots", "gpu_load", "REAL")
+        ensure_column(conn, "snapshots", "gpu_temp", "REAL")
+        ensure_column(conn, "snapshots", "gpu_mem_used_mb", "REAL")
+        ensure_column(conn, "snapshots", "gpu_mem_total_mb", "REAL")
+        ensure_column(conn, "snapshots", "gpu_json", "TEXT")
+        ensure_column(conn, "snapshots", "net_sent", "INTEGER DEFAULT 0")
+        ensure_column(conn, "snapshots", "net_recv", "INTEGER DEFAULT 0")
+        ensure_column(conn, "snapshots", "disk_read_bytes", "INTEGER DEFAULT 0")
+        ensure_column(conn, "snapshots", "disk_write_bytes", "INTEGER DEFAULT 0")
+
+        ensure_column(conn, "interface_snapshots", "mtu", "INTEGER DEFAULT 0")
+        ensure_column(conn, "interface_snapshots", "mac_address", "TEXT")
+        ensure_column(conn, "interface_snapshots", "bytes_sent", "INTEGER DEFAULT 0")
+        ensure_column(conn, "interface_snapshots", "bytes_recv", "INTEGER DEFAULT 0")
+
+        ensure_column(conn, "service_snapshots", "binpath", "TEXT")
+
+        ensure_column(conn, "software_snapshots", "install_date", "TEXT")
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_machines_hostname ON machines(hostname)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_alerts_machine_status ON alerts(machine_id, status)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_alerts_machine_resolved ON alerts(machine_id, is_resolved)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_remote_commands_machine_status ON remote_commands(machine_id, status)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_snapshots_machine_recorded ON snapshots(machine_id, recorded_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_event_logs_machine_recorded ON event_logs(machine_id, recorded_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_machine_groups_name ON machine_groups(group_name)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_machine_group_members_group ON machine_group_members(group_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_machine_group_members_machine ON machine_group_members(machine_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_enabled_next_run ON scheduled_jobs(enabled, next_run_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scheduled_job_runs_job_created ON scheduled_job_runs(job_id, created_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_drive_snapshots_machine_recorded ON drive_snapshots(machine_id, recorded_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_interface_snapshots_machine_recorded ON interface_snapshots(machine_id, recorded_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_service_snapshots_machine_recorded ON service_snapshots(machine_id, recorded_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_process_snapshots_machine_recorded ON process_snapshots(machine_id, recorded_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_software_snapshots_machine_recorded ON software_snapshots(machine_id, recorded_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_inventory_snapshots_machine_recorded ON inventory_snapshots(machine_id, recorded_at)"
+        )
+
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# -------------------------------------------------------------------
+# RC / notification schema
+# -------------------------------------------------------------------
+
 def ensure_rc_schema() -> None:
-    """
-    Ensures the canonical RC tables exist.
-    Also tolerates legacy settings table column names.
-    """
     conn = get_db_connection()
     try:
         conn.execute(
@@ -211,7 +641,6 @@ def ensure_rc_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_remediation_rules_trigger ON remediation_rules(trigger_type, severity, metric_name)"
         )
 
-        # Detect actual settings table column names
         settings_cols = {
             row["name"] for row in conn.execute("PRAGMA table_info(settings)").fetchall()
         }
@@ -245,6 +674,7 @@ def ensure_rc_schema() -> None:
 
 
 def init_db() -> None:
+    ensure_core_schema()
     ensure_rc_schema()
 
 

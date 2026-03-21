@@ -1,22 +1,42 @@
 from datetime import datetime, timezone
+from typing import Any, Optional
 
-def bytes_to_gb(value):
+
+def bytes_to_gb(value: Any) -> float:
     if value is None:
         return 0
-    return round(value / (1024 ** 3), 2)
+    try:
+        return round(float(value) / (1024 ** 3), 2)
+    except Exception:
+        return 0
 
-def bytes_to_mb(value):
+
+def bytes_to_mb(value: Any) -> float:
     if value is None:
         return 0
-    return round(value / (1024 ** 2), 2)
+    try:
+        return round(float(value) / (1024 ** 2), 2)
+    except Exception:
+        return 0
 
-def format_rate_bps(value):
+
+def mb_to_gb(value: Any) -> float:
+    if value is None:
+        return 0
+    try:
+        return round(float(value) / 1024, 2)
+    except Exception:
+        return 0
+
+
+def format_rate_bps(value: Any) -> str:
     if value is None:
         return "0 B/s"
     try:
         value = float(value)
     except Exception:
         return "0 B/s"
+
     units = ["B/s", "KB/s", "MB/s", "GB/s"]
     idx = 0
     while value >= 1024 and idx < len(units) - 1:
@@ -24,14 +44,17 @@ def format_rate_bps(value):
         idx += 1
     return f"{value:.2f} {units[idx]}"
 
-def format_uptime(seconds):
+
+def format_uptime(seconds: Any) -> str:
     try:
         seconds = int(seconds or 0)
     except Exception:
         return "0m"
+
     days, remainder = divmod(seconds, 86400)
     hours, remainder = divmod(remainder, 3600)
     minutes, _ = divmod(remainder, 60)
+
     parts = []
     if days:
         parts.append(f"{days}d")
@@ -40,13 +63,36 @@ def format_uptime(seconds):
     parts.append(f"{minutes}m")
     return " ".join(parts)
 
-def format_last_seen(iso_value):
-    if not iso_value:
-        return "Never"
+
+def _parse_datetime(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
     try:
-        dt = datetime.fromisoformat(iso_value)
+        text = text.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def format_last_seen(iso_value: Any) -> str:
+    dt = _parse_datetime(iso_value)
+    if not dt:
+        return "Never"
+
+    try:
         now = datetime.now(timezone.utc)
         seconds = int((now - dt).total_seconds())
+
+        if seconds < 0:
+            return "Just now"
         if seconds < 60:
             return f"{seconds}s ago"
         if seconds < 3600:
@@ -55,4 +101,85 @@ def format_last_seen(iso_value):
             return f"{seconds // 3600}h ago"
         return f"{seconds // 86400}d ago"
     except Exception:
-        return iso_value
+        return str(iso_value)
+
+
+def seconds_since(iso_value: Any) -> Optional[int]:
+    dt = _parse_datetime(iso_value)
+    if not dt:
+        return None
+
+    try:
+        now = datetime.now(timezone.utc)
+        return max(int((now - dt).total_seconds()), 0)
+    except Exception:
+        return None
+
+
+def is_stale(iso_value: Any, stale_after_seconds: int = 120) -> bool:
+    age = seconds_since(iso_value)
+    if age is None:
+        return True
+    return age > stale_after_seconds
+
+
+def freshness_state(
+    iso_value: Any,
+    fresh_after_seconds: int = 90,
+    aging_after_seconds: int = 180,
+) -> str:
+    """
+    Returns one of:
+    - "unknown"
+    - "fresh"
+    - "aging"
+    - "stale"
+    """
+    age = seconds_since(iso_value)
+    if age is None:
+        return "unknown"
+    if age <= fresh_after_seconds:
+        return "fresh"
+    if age <= aging_after_seconds:
+        return "aging"
+    return "stale"
+
+
+def freshness_label(
+    iso_value: Any,
+    fresh_after_seconds: int = 90,
+    aging_after_seconds: int = 180,
+) -> str:
+    state = freshness_state(
+        iso_value,
+        fresh_after_seconds=fresh_after_seconds,
+        aging_after_seconds=aging_after_seconds,
+    )
+
+    labels = {
+        "unknown": "Unknown",
+        "fresh": "Fresh",
+        "aging": "Aging",
+        "stale": "Stale",
+    }
+    return labels.get(state, "Unknown")
+
+
+def freshness_badge_class(
+    iso_value: Any,
+    fresh_after_seconds: int = 90,
+    aging_after_seconds: int = 180,
+) -> str:
+    state = freshness_state(
+        iso_value,
+        fresh_after_seconds=fresh_after_seconds,
+        aging_after_seconds=aging_after_seconds,
+    )
+
+    mapping = {
+        "unknown": "pill-muted",
+        "fresh": "pill-online",
+        "aging": "pill-warning",
+        "stale": "pill-offline",
+    }
+    return mapping.get(state, "pill-muted")

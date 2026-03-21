@@ -1,32 +1,482 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel">
-  <div class="panel-header">
-    <h2>Settings</h2>
-    <p>Adjust thresholds, refresh behavior, and notification delivery for LiveWire.</p>
-  </div>
-  <form method="post" class="settings-form">
-    <div class="settings-grid">
-      <label class="field"><span>CPU alert threshold (%)</span><input type="number" step="0.1" name="cpu_alert_threshold" value="{{ settings_map.get('cpu_alert_threshold', '90') }}"></label>
-      <label class="field"><span>RAM alert threshold (%)</span><input type="number" step="0.1" name="ram_alert_threshold" value="{{ settings_map.get('ram_alert_threshold', '90') }}"></label>
-      <label class="field"><span>Disk alert threshold (%)</span><input type="number" step="0.1" name="disk_alert_threshold" value="{{ settings_map.get('disk_alert_threshold', '90') }}"></label>
-      <label class="field"><span>Temperature alert threshold (°C)</span><input type="number" step="0.1" name="temp_alert_threshold" value="{{ settings_map.get('temp_alert_threshold', '85') }}"></label>
-      <label class="field"><span>Auto refresh (seconds)</span><input type="number" name="refresh_seconds" value="{{ settings_map.get('refresh_seconds', '10') }}"></label>
-      <label class="field"><span>Offline after (seconds)</span><input type="number" name="offline_after_seconds" value="{{ settings_map.get('offline_after_seconds', '90') }}"></label>
-      <label class="field"><span>Top processes shown</span><input type="number" name="max_top_processes" value="{{ settings_map.get('max_top_processes', '8') }}"></label>
-      <label class="field field-wide"><span>Discord webhook URL</span><input type="text" name="discord_webhook_url" value="{{ settings_map.get('discord_webhook_url', '') }}" placeholder="https://discord.com/api/webhooks/..." autocomplete="off"></label>
-      <label class="field field-wide"><span>Notification email recipients</span><input type="text" name="notification_email_to" value="{{ settings_map.get('notification_email_to', '') }}" placeholder="ops@example.com, alerts@example.com"></label>
-      <label class="field"><span>SMTP host</span><input type="text" name="smtp_host" value="{{ settings_map.get('smtp_host', '') }}"></label>
-      <label class="field"><span>SMTP port</span><input type="number" name="smtp_port" value="{{ settings_map.get('smtp_port', '587') }}"></label>
-      <label class="field"><span>SMTP username</span><input type="text" name="smtp_username" value="{{ settings_map.get('smtp_username', '') }}"></label>
-      <label class="field"><span>SMTP password</span><input type="password" name="smtp_password" value="{{ settings_map.get('smtp_password', '') }}" autocomplete="new-password"></label>
-      <label class="field"><span>From address</span><input type="text" name="smtp_from" value="{{ settings_map.get('smtp_from', 'livewire@localhost') }}"></label>
-      <label class="checkbox-field"><input type="checkbox" name="smtp_use_tls" {% if settings_map.get('smtp_use_tls', '1') in ['1', 'true', 'True', 'yes', 'on'] %}checked{% endif %}> <span>Use TLS for SMTP</span></label>
+
+<section class="panel settings-panel">
+  <div class="panel-header settings-header">
+    <div>
+      <div class="eyebrow">Platform Configuration</div>
+      <h2>Settings</h2>
+      <p>Adjust thresholds, refresh behavior, notifications, and enhanced hardware telemetry for LiveWire.</p>
     </div>
-    <div class="form-actions">
+
+    <div class="settings-header-badges">
+      <span class="status-pill pill-muted">Live Config</span>
+      {% if settings_map.get('enhanced_hwmon_enabled', '0') in ['1', 'true', 'True', 'yes', 'on'] %}
+        <span class="status-pill pill-online">Enhanced Telemetry Enabled</span>
+      {% else %}
+        <span class="status-pill pill-warning">Enhanced Telemetry Disabled</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="post" class="settings-form">
+    <div class="settings-layout">
+      <div class="settings-main">
+        <div class="settings-section">
+          <div class="section-heading">
+            <h3>Monitoring & Refresh</h3>
+            <p>Core dashboard thresholds and polling behavior.</p>
+          </div>
+
+          <div class="settings-grid">
+            <label class="field">
+              <span>CPU alert threshold (%)</span>
+              <input type="number" step="0.1" min="1" max="100" name="cpu_alert_threshold" value="{{ settings_map.get('cpu_alert_threshold', '90') }}">
+              <small class="helper-text">Trigger alerts when CPU usage stays above this percentage.</small>
+            </label>
+
+            <label class="field">
+              <span>RAM alert threshold (%)</span>
+              <input type="number" step="0.1" min="1" max="100" name="ram_alert_threshold" value="{{ settings_map.get('ram_alert_threshold', '90') }}">
+              <small class="helper-text">Used for memory-based alerting across monitored machines.</small>
+            </label>
+
+            <label class="field">
+              <span>Disk alert threshold (%)</span>
+              <input type="number" step="0.1" min="1" max="100" name="disk_alert_threshold" value="{{ settings_map.get('disk_alert_threshold', '90') }}">
+              <small class="helper-text">Applies to reported disk usage from the agent.</small>
+            </label>
+
+            <label class="field">
+              <span>Temperature alert threshold (°C)</span>
+              <input type="number" step="0.1" min="1" max="150" name="temp_alert_threshold" value="{{ settings_map.get('temp_alert_threshold', '85') }}">
+              <small class="helper-text">Used for CPU temperature alert evaluation.</small>
+            </label>
+
+            <label class="field">
+              <span>Auto refresh (seconds)</span>
+              <input type="number" min="3" max="3600" name="refresh_seconds" value="{{ settings_map.get('refresh_seconds', '10') }}">
+              <small class="helper-text">Controls page auto-refresh cadence in the web UI.</small>
+            </label>
+
+            <label class="field">
+              <span>Offline after (seconds)</span>
+              <input type="number" min="10" max="86400" name="offline_after_seconds" value="{{ settings_map.get('offline_after_seconds', '90') }}">
+              <small class="helper-text">Machines older than this window are treated as offline.</small>
+            </label>
+
+            <label class="field">
+              <span>Top processes shown</span>
+              <input type="number" min="1" max="100" name="max_top_processes" value="{{ settings_map.get('max_top_processes', '8') }}">
+              <small class="helper-text">How many top CPU and memory processes to retain per report.</small>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-heading">
+            <h3>Notifications</h3>
+            <p>Configure Discord and email delivery for alerts and test messages.</p>
+          </div>
+
+          <div class="settings-grid">
+            <label class="field field-wide">
+              <span>Discord webhook URL</span>
+              <input
+                type="text"
+                name="discord_webhook_url"
+                value="{{ settings_map.get('discord_webhook_url', '') }}"
+                placeholder="https://discord.com/api/webhooks/..."
+                autocomplete="off"
+              >
+              <small class="helper-text">Optional. Used for alert delivery and Save + Send Test Notification.</small>
+            </label>
+
+            <label class="field field-wide">
+              <span>Notification email recipients</span>
+              <input
+                type="text"
+                name="notification_email_to"
+                value="{{ settings_map.get('notification_email_to', '') }}"
+                placeholder="ops@example.com, alerts@example.com"
+              >
+              <small class="helper-text">Comma-separated recipient list for email notifications.</small>
+            </label>
+
+            <label class="field">
+              <span>SMTP host</span>
+              <input type="text" name="smtp_host" value="{{ settings_map.get('smtp_host', '') }}" placeholder="smtp.example.com">
+            </label>
+
+            <label class="field">
+              <span>SMTP port</span>
+              <input type="number" min="1" max="65535" name="smtp_port" value="{{ settings_map.get('smtp_port', '587') }}">
+            </label>
+
+            <label class="field">
+              <span>SMTP username</span>
+              <input type="text" name="smtp_username" value="{{ settings_map.get('smtp_username', '') }}">
+            </label>
+
+            <label class="field">
+              <span>SMTP password</span>
+              <input type="password" name="smtp_password" value="{{ settings_map.get('smtp_password', '') }}" autocomplete="new-password">
+            </label>
+
+            <label class="field">
+              <span>From address</span>
+              <input type="text" name="smtp_from" value="{{ settings_map.get('smtp_from', 'livewire@localhost') }}">
+            </label>
+
+            <label class="checkbox-field checkbox-inline checkbox-panel">
+              <input
+                type="checkbox"
+                name="smtp_use_tls"
+                {% if settings_map.get('smtp_use_tls', '1') in ['1', 'true', 'True', 'yes', 'on'] %}checked{% endif %}
+              >
+              <div>
+                <strong>Use TLS for SMTP</strong>
+                <small class="helper-text">Recommended for authenticated email delivery.</small>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section settings-section-accent">
+          <div class="section-heading">
+            <h3>Enhanced Hardware Telemetry</h3>
+            <p>Manage LibreHardwareMonitor integration for richer AMD and Windows sensor visibility.</p>
+          </div>
+
+          <div class="telemetry-intro">
+            <div class="telemetry-callout">
+              <div class="telemetry-callout-title">Best for AMD and richer Windows telemetry</div>
+              <div class="telemetry-callout-text">
+                When enabled, LiveWire can use LibreHardwareMonitor on monitored Windows systems to improve GPU,
+                temperature, and hardware sensor visibility beyond standard WMI and native tool output.
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-grid">
+            <label class="checkbox-field checkbox-panel">
+              <input
+                type="checkbox"
+                name="enhanced_hwmon_enabled"
+                {% if settings_map.get('enhanced_hwmon_enabled', '0') in ['1', 'true', 'True', 'yes', 'on'] %}checked{% endif %}
+              >
+              <div>
+                <strong>Enable enhanced hardware telemetry</strong>
+                <small class="helper-text">Turns on LHM-backed telemetry support for agents that can use it.</small>
+              </div>
+            </label>
+
+            <label class="checkbox-field checkbox-panel">
+              <input
+                type="checkbox"
+                name="lhm_auto_install"
+                {% if settings_map.get('lhm_auto_install', '0') in ['1', 'true', 'True', 'yes', 'on'] %}checked{% endif %}
+              >
+              <div>
+                <strong>Auto-install LibreHardwareMonitor helper</strong>
+                <small class="helper-text">Allows the agent to fetch and unpack the helper when missing.</small>
+              </div>
+            </label>
+
+            <label class="checkbox-field checkbox-panel">
+              <input
+                type="checkbox"
+                name="lhm_auto_start"
+                {% if settings_map.get('lhm_auto_start', '0') in ['1', 'true', 'True', 'yes', 'on'] %}checked{% endif %}
+              >
+              <div>
+                <strong>Auto-start LibreHardwareMonitor with agent</strong>
+                <small class="helper-text">Uses a scheduled task to launch LHM if the endpoint is unavailable.</small>
+              </div>
+            </label>
+
+            <label class="field field-wide">
+              <span>LHM JSON URL</span>
+              <input
+                type="text"
+                name="lhm_url"
+                value="{{ settings_map.get('lhm_url', 'http://127.0.0.1:8085/data.json') }}"
+                placeholder="http://127.0.0.1:8085/data.json"
+              >
+              <small class="helper-text">Agent uses this JSON endpoint to collect enhanced telemetry.</small>
+            </label>
+
+            <label class="field field-wide">
+              <span>LHM install directory</span>
+              <input
+                type="text"
+                name="lhm_install_dir"
+                value="{{ settings_map.get('lhm_install_dir', 'C:\\ProgramData\\LiveWire\\LibreHardwareMonitor') }}"
+                placeholder="C:\ProgramData\LiveWire\LibreHardwareMonitor"
+              >
+              <small class="helper-text">Recommended path for a shared system-wide helper install.</small>
+            </label>
+
+            <label class="field field-wide">
+              <span>LHM download URL</span>
+              <input
+                type="text"
+                name="lhm_download_url"
+                value="{{ settings_map.get('lhm_download_url', '') }}"
+                placeholder="Pinned internal mirror or release ZIP URL"
+              >
+              <small class="helper-text">Leave populated for auto-install workflows. Use a pinned source when possible.</small>
+            </label>
+
+            <label class="field field-wide">
+              <span>LHM expected SHA256</span>
+              <input
+                type="text"
+                name="lhm_expected_sha256"
+                value="{{ settings_map.get('lhm_expected_sha256', '') }}"
+                placeholder="Optional checksum for validation"
+              >
+              <small class="helper-text">Optional integrity value for future helper verification workflows.</small>
+            </label>
+          </div>
+
+          <div class="settings-note telemetry-note">
+            <strong>Telemetry behavior:</strong>
+            NVIDIA systems can continue using native tooling such as <span class="mono">nvidia-smi</span>.
+            Enhanced telemetry is especially useful for AMD systems and for richer Windows sensor reporting.
+          </div>
+        </div>
+      </div>
+
+      <aside class="settings-sidebar">
+        <div class="settings-side-card">
+          <h3>Current Guidance</h3>
+          <div class="settings-side-list">
+            <div class="settings-side-item">
+              <strong>Refresh window</strong>
+              <span>{{ settings_map.get('refresh_seconds', '10') }}s UI refresh</span>
+            </div>
+            <div class="settings-side-item">
+              <strong>Offline threshold</strong>
+              <span>{{ settings_map.get('offline_after_seconds', '90') }}s inactivity window</span>
+            </div>
+            <div class="settings-side-item">
+              <strong>Top processes</strong>
+              <span>{{ settings_map.get('max_top_processes', '8') }} retained per category</span>
+            </div>
+            <div class="settings-side-item">
+              <strong>Enhanced telemetry</strong>
+              <span>
+                {% if settings_map.get('enhanced_hwmon_enabled', '0') in ['1', 'true', 'True', 'yes', 'on'] %}
+                  Enabled
+                {% else %}
+                  Disabled
+                {% endif %}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-side-card">
+          <h3>Recommended Defaults</h3>
+          <div class="settings-side-list compact">
+            <div class="settings-side-item">
+              <strong>CPU / RAM / Disk</strong>
+              <span>90%</span>
+            </div>
+            <div class="settings-side-item">
+              <strong>Temperature</strong>
+              <span>85 °C</span>
+            </div>
+            <div class="settings-side-item">
+              <strong>SMTP</strong>
+              <span>TLS enabled</span>
+            </div>
+            <div class="settings-side-item">
+              <strong>AMD systems</strong>
+              <span>Enable enhanced telemetry</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="form-actions settings-actions">
       <button type="submit" name="form_action" value="save" class="button-primary">Save Settings</button>
       <button type="submit" name="form_action" value="save_and_test" class="button-secondary">Save + Send Test Notification</button>
     </div>
   </form>
 </section>
+
+<style>
+.settings-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.settings-header-badges{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.settings-layout{
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) 300px;
+  gap:20px;
+}
+
+.settings-main{
+  display:grid;
+  gap:20px;
+}
+
+.settings-sidebar{
+  display:grid;
+  gap:20px;
+  align-self:start;
+}
+
+.settings-section{
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(255,255,255,.025) 0%, rgba(255,255,255,.012) 100%);
+  padding:18px;
+}
+
+.settings-section-accent{
+  border-color:rgba(0,204,102,.26);
+  box-shadow:0 0 0 1px rgba(0,204,102,.08);
+}
+
+.section-heading{
+  margin-bottom:16px;
+}
+
+.section-heading h3{
+  margin:0 0 6px;
+}
+
+.section-heading p{
+  margin:0;
+  color:var(--muted);
+}
+
+.checkbox-inline{
+  align-items:flex-start;
+}
+
+.checkbox-panel{
+  padding:14px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(255,255,255,.02);
+  min-height:100%;
+}
+
+.checkbox-panel strong{
+  display:block;
+  color:var(--text);
+  margin-bottom:4px;
+}
+
+.telemetry-intro{
+  margin-bottom:16px;
+}
+
+.telemetry-callout{
+  padding:14px 16px;
+  border-radius:16px;
+  border:1px solid rgba(0,204,102,.24);
+  background:rgba(0,204,102,.07);
+}
+
+.telemetry-callout-title{
+  font-weight:800;
+  margin-bottom:6px;
+  color:#c8ffe0;
+}
+
+.telemetry-callout-text{
+  color:#c1d8cb;
+  line-height:1.5;
+  font-size:14px;
+}
+
+.telemetry-note{
+  margin-top:16px;
+}
+
+.settings-side-card{
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.015) 100%);
+  padding:18px;
+  box-shadow:var(--shadow);
+}
+
+.settings-side-card h3{
+  margin:0 0 14px;
+}
+
+.settings-side-list{
+  display:grid;
+  gap:12px;
+}
+
+.settings-side-list.compact{
+  gap:10px;
+}
+
+.settings-side-item{
+  display:grid;
+  gap:4px;
+  padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.settings-side-item:last-child{
+  border-bottom:0;
+  padding-bottom:0;
+}
+
+.settings-side-item strong{
+  font-size:14px;
+}
+
+.settings-side-item span{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.4;
+}
+
+.settings-actions{
+  margin-top:20px;
+}
+
+@media (max-width: 1100px){
+  .settings-layout{
+    grid-template-columns:1fr;
+  }
+
+  .settings-sidebar{
+    grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 860px){
+  .settings-header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .settings-header-badges{
+    justify-content:flex-start;
+  }
+}
+</style>
+
 {% endblock %}

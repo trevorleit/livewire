@@ -1,80 +1,382 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel">
-  <div class="panel-header">
-    <h2>Remote Actions</h2>
-    <p>Create commands, approve them, and let the agent execute them safely.</p>
+
+<section class="panel actions-shell">
+  <div class="panel-header actions-header">
+    <div>
+      <div class="eyebrow">Remote Operations</div>
+      <h2>Remote Actions</h2>
+      <p>Create commands, approve them, and let the agent execute them safely.</p>
+    </div>
+
+    <div class="actions-header-badges">
+      <span class="status-pill pill-muted">{{ machines|length }} machine{{ '' if machines|length == 1 else 's' }}</span>
+      <span class="status-pill pill-info">{{ commands|length }} queued / recent command{{ '' if commands|length == 1 else 's' }}</span>
+    </div>
   </div>
 
-  <div class="panel">
-    <div class="panel-header"><h3>Queue Command</h3><p>New commands start in pending approval.</p></div>
-    <form method="post">
-      <input type="hidden" name="form_type" value="create_command">
-      <div class="settings-grid">
-        <label class="field"><span>Machine</span>
-          <select name="machine_id">
-            {% for machine in machines %}
-            <option value="{{ machine.id }}">{{ machine.display_name or machine.hostname }}{% if not machine.is_online %} (offline){% endif %}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label class="field"><span>Action</span>
-          <select name="action_type">
-            <option value="restart_service">Restart service</option>
-            <option value="stop_process">Stop process by PID</option>
-            <option value="reboot_machine">Reboot machine</option>
-          </select>
-        </label>
-        <label class="field"><span>Service name</span><input type="text" name="service_name" placeholder="Apache or MySQL"></label>
-        <label class="field"><span>PID</span><input type="number" name="pid" placeholder="1234"></label>
-        <label class="field"><span>Reboot delay (seconds)</span><input type="number" name="delay_seconds" value="5"></label>
+  <div class="actions-layout">
+    <div class="actions-main">
+      <section class="panel action-builder-panel">
+        <div class="panel-header">
+          <h3>Queue Command</h3>
+          <p>New commands start in pending approval unless created by automation flows elsewhere.</p>
+        </div>
+
+        <form method="post" class="compact-form">
+          <input type="hidden" name="form_type" value="create_command">
+
+          <div class="action-builder-grid">
+            <label class="field">
+              <span>Machine</span>
+              <select name="machine_id" required>
+                {% for machine in machines %}
+                <option value="{{ machine.id }}">
+                  {{ machine.display_name or machine.hostname }}{% if not machine.is_online %} (offline){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+              <small class="helper-text">Choose the target machine for this command.</small>
+            </label>
+
+            <label class="field">
+              <span>Action</span>
+              <select name="action_type" id="action_type" required>
+                <option value="restart_service">Restart service</option>
+                <option value="stop_process">Stop process by PID</option>
+                <option value="reboot_machine">Reboot machine</option>
+              </select>
+              <small class="helper-text">Action-specific input fields change automatically.</small>
+            </label>
+
+            <label class="field action-field" id="service_name_field">
+              <span>Service name</span>
+              <input type="text" name="service_name" placeholder="Apache or MySQL">
+            </label>
+
+            <label class="field action-field" id="pid_field" style="display:none;">
+              <span>PID</span>
+              <input type="number" name="pid" placeholder="1234">
+            </label>
+
+            <label class="field action-field" id="delay_seconds_field" style="display:none;">
+              <span>Reboot delay (seconds)</span>
+              <input type="number" name="delay_seconds" value="5" min="0">
+            </label>
+          </div>
+
+          <div class="helper-text action-helper-note">
+            Remote commands are created in a safe review state first, then approved manually from the queue below.
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="button-primary">Queue Command</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header split-header">
+          <div>
+            <h3>Command Queue</h3>
+            <p>Approve or cancel commands before they execute.</p>
+          </div>
+          <div class="actions-queue-summary muted">
+            Latest {{ commands|length }} command{{ '' if commands|length == 1 else 's' }}
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Machine</th>
+                <th>Action</th>
+                <th>Status</th>
+                <th>Source</th>
+                <th>Requested</th>
+                <th>Result</th>
+                <th>Controls</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in commands %}
+                {% set action_label =
+                  "Restart Service" if row.action_type == "restart_service"
+                  else "Stop Process" if row.action_type == "stop_process"
+                  else "Reboot Machine" if row.action_type == "reboot_machine"
+                  else (row.action_type or "Unknown")
+                %}
+                {% set source_value = row.source or 'dashboard' %}
+              <tr>
+                <td>{{ row.id }}</td>
+
+                <td>
+                  <div class="command-machine-cell">
+                    <strong>{{ row.machine_label }}</strong>
+                    <div class="inline-badges">
+                      {% if row.machine_role %}
+                        <span class="status-pill pill-muted">{{ row.machine_role }}</span>
+                      {% endif %}
+                      <span class="status-pill {{ 'pill-online' if row.is_online else 'pill-offline' }}">
+                        {{ 'Online' if row.is_online else 'Offline' }}
+                      </span>
+                    </div>
+                  </div>
+                </td>
+
+                <td>
+                  <div class="job-title">{{ action_label }}</div>
+                  {% if row.payload_json %}
+                    <div class="job-desc mono">{{ row.payload_json }}</div>
+                  {% endif %}
+                </td>
+
+                <td>
+                  <span class="status-pill {{ 'pill-warning' if row.status in ['pending_approval','sent'] else ('pill-online' if row.status == 'completed' else ('pill-muted' if row.status == 'approved' else 'pill-offline')) }}">
+                    {{ row.status }}
+                  </span>
+                </td>
+
+                <td>
+                  <div class="inline-badges">
+                    {% if source_value in ['scheduler', 'automation'] %}
+                      <span class="source-badge automation">{{ source_value }}</span>
+                    {% else %}
+                      <span class="source-badge manual">{{ source_value }}</span>
+                    {% endif %}
+
+                    {% if row.trigger_alert_id %}
+                      <span class="status-pill pill-warning">alert #{{ row.trigger_alert_id }}</span>
+                    {% endif %}
+
+                    {% if row.scheduled_job_name %}
+                      <span class="status-pill pill-info">{{ row.scheduled_job_name }}</span>
+                    {% endif %}
+                  </div>
+                </td>
+
+                <td>{{ row.created_at }}</td>
+
+                <td>
+                  <div class="result-box">{{ row.result_text or '—' }}</div>
+                </td>
+
+                <td>
+                  <div class="controls-stack">
+                    {% if row.status == 'pending_approval' %}
+                    <form method="post">
+                      <input type="hidden" name="form_type" value="approve_command">
+                      <input type="hidden" name="command_id" value="{{ row.id }}">
+                      <button type="submit" class="button-primary small-button">Approve</button>
+                    </form>
+                    {% endif %}
+
+                    {% if row.status in ['pending_approval', 'approved', 'sent'] %}
+                    <form method="post">
+                      <input type="hidden" name="form_type" value="cancel_command">
+                      <input type="hidden" name="command_id" value="{{ row.id }}">
+                      <button type="submit" class="button-secondary small-button">Cancel</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="8">No commands yet.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <aside class="actions-sidebar">
+      <div class="actions-side-card">
+        <h3>Workflow</h3>
+        <div class="actions-side-list">
+          <div class="actions-side-item">
+            <strong>Create</strong>
+            <span>Queue a command for a specific machine.</span>
+          </div>
+          <div class="actions-side-item">
+            <strong>Approve</strong>
+            <span>Review pending items before they are sent to the agent.</span>
+          </div>
+          <div class="actions-side-item">
+            <strong>Execute</strong>
+            <span>The agent polls for approved work and reports back the result.</span>
+          </div>
+          <div class="actions-side-item">
+            <strong>Audit</strong>
+            <span>Use the result and source fields to confirm whether a command was manual, alert-driven, or scheduled.</span>
+          </div>
+        </div>
       </div>
-      <div class="form-actions"><button type="submit" class="button-primary">Queue Command</button></div>
-    </form>
+
+      <div class="actions-side-card">
+        <h3>Safe Defaults</h3>
+        <div class="actions-side-list compact">
+          <div class="actions-side-item">
+            <strong>Restart service</strong>
+            <span>Best first validation action.</span>
+          </div>
+          <div class="actions-side-item">
+            <strong>Reboot machine</strong>
+            <span>Use short delays only when intended.</span>
+          </div>
+          <div class="actions-side-item">
+            <strong>Stop process</strong>
+            <span>Use with care and verify the PID before approving.</span>
+          </div>
+        </div>
+      </div>
+    </aside>
   </div>
 </section>
 
-<section class="panel">
-  <div class="panel-header"><h3>Command Queue</h3><p>Approve or cancel commands before they execute.</p></div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>ID</th><th>Machine</th><th>Action</th><th>Status</th><th>Source</th><th>Requested</th><th>Result</th><th>Controls</th></tr></thead>
-      <tbody>
-        {% for row in commands %}
-        <tr>
-          <td>{{ row.id }}</td>
-          <td>{{ row.machine_label }}</td>
-          <td>{{ row.action_type }}</td>
-          <td>
-            <span class="status-pill {{ 'pill-warning' if row.status in ['pending_approval','sent'] else ('pill-online' if row.status == 'completed' else ('pill-muted' if row.status == 'approved' else 'pill-offline')) }}">
-              {{ row.status }}
-            </span>
-          </td>
-          <td>{{ row.source or 'dashboard' }}{% if row.trigger_alert_id %} / alert #{{ row.trigger_alert_id }}{% endif %}</td>
-          <td>{{ row.created_at }}</td>
-          <td><div class="result-box">{{ row.result_text or '—' }}</div></td>
-          <td>
-            {% if row.status == 'pending_approval' %}
-            <form method="post" style="display:inline-block">
-              <input type="hidden" name="form_type" value="approve_command">
-              <input type="hidden" name="command_id" value="{{ row.id }}">
-              <button type="submit" class="button-primary">Approve</button>
-            </form>
-            {% endif %}
-            {% if row.status in ['pending_approval', 'approved', 'sent'] %}
-            <form method="post" style="display:inline-block">
-              <input type="hidden" name="form_type" value="cancel_command">
-              <input type="hidden" name="command_id" value="{{ row.id }}">
-              <button type="submit" class="button-secondary">Cancel</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="8">No commands yet.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
+<style>
+.actions-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.actions-header-badges{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.actions-layout{
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) 300px;
+  gap:20px;
+}
+
+.actions-main{
+  display:grid;
+  gap:20px;
+  min-width:0;
+}
+
+.actions-sidebar{
+  display:grid;
+  gap:20px;
+  align-self:start;
+}
+
+.action-builder-panel{
+  margin-bottom:0;
+}
+
+.action-builder-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+  gap:16px;
+}
+
+.action-helper-note{
+  margin-top:10px;
+}
+
+.actions-side-card{
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.015) 100%);
+  padding:18px;
+  box-shadow:var(--shadow);
+}
+
+.actions-side-card h3{
+  margin:0 0 14px;
+}
+
+.actions-side-list{
+  display:grid;
+  gap:12px;
+}
+
+.actions-side-list.compact{
+  gap:10px;
+}
+
+.actions-side-item{
+  display:grid;
+  gap:4px;
+  padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.actions-side-item:last-child{
+  border-bottom:0;
+  padding-bottom:0;
+}
+
+.actions-side-item strong{
+  font-size:14px;
+}
+
+.actions-side-item span{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+
+.command-machine-cell{
+  display:grid;
+  gap:8px;
+}
+
+.actions-queue-summary{
+  font-size:13px;
+}
+
+@media (max-width: 1100px){
+  .actions-layout{
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width: 860px){
+  .actions-header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .actions-header-badges{
+    justify-content:flex-start;
+  }
+}
+</style>
+
+<script>
+(function () {
+  const actionType = document.getElementById("action_type");
+  const serviceField = document.getElementById("service_name_field");
+  const pidField = document.getElementById("pid_field");
+  const delayField = document.getElementById("delay_seconds_field");
+
+  function syncActionFields() {
+    if (!actionType || !serviceField || !pidField || !delayField) return;
+
+    const value = actionType.value;
+
+    serviceField.style.display = value === "restart_service" ? "" : "none";
+    pidField.style.display = value === "stop_process" ? "" : "none";
+    delayField.style.display = value === "reboot_machine" ? "" : "none";
+  }
+
+  if (actionType) {
+    actionType.addEventListener("change", syncActionFields);
+    syncActionFields();
+  }
+})();
+</script>
+
 {% endblock %}

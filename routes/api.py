@@ -16,6 +16,11 @@ from services.alert_engine import (
 api_bp = Blueprint("api", __name__)
 
 
+@api_bp.route("/api/settings", methods=["GET"])
+def api_settings():
+    return jsonify(get_runtime_settings())
+
+
 @api_bp.route("/api/report", methods=["POST"])
 def report():
     data = request.get_json(silent=True)
@@ -45,7 +50,8 @@ def report():
     interfaces = data.get("interfaces", [])
     inventory = data.get("inventory", {})
     software = data.get("software", [])
-    gpu = data.get("gpu", {})
+    gpu = data.get("gpu", {}) or {}
+    gpus = data.get("gpus", []) or []
     events = data.get("events", [])
     disk_io = data.get("disk_io", {})
     now = datetime.now(timezone.utc).isoformat()
@@ -64,12 +70,51 @@ def report():
                 UPDATE machines
                 SET ip_address = ?,
                     os_name = ?,
-                    last_seen = ?,
+                    current_user = ?,
                     is_online = 1,
+                    cpu_percent = ?,
+                    ram_percent = ?,
+                    ram_used = ?,
+                    ram_total = ?,
+                    disk_used = ?,
+                    disk_total = ?,
+                    disk_percent = ?,
+                    net_up_bps = ?,
+                    net_down_bps = ?,
+                    cpu_temp = ?,
+                    gpu_name = ?,
+                    gpu_load = ?,
+                    gpu_temp = ?,
+                    gpu_mem_used_mb = ?,
+                    gpu_mem_total_mb = ?,
+                    uptime_seconds = ?,
+                    last_seen = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
-                (ip_address, os_name, now, machine_id),
+                (
+                    ip_address,
+                    os_name,
+                    current_user,
+                    cpu_percent,
+                    ram.get("percent", 0),
+                    ram.get("used", 0),
+                    ram.get("total", 0),
+                    disk.get("used", 0),
+                    disk.get("total", 0),
+                    disk.get("percent", 0),
+                    network.get("up_bps", 0),
+                    network.get("down_bps", 0),
+                    cpu_temp,
+                    gpu.get("name"),
+                    gpu.get("load_percent"),
+                    gpu.get("temperature"),
+                    gpu.get("memory_used_mb"),
+                    gpu.get("memory_total_mb"),
+                    uptime_seconds,
+                    now,
+                    machine_id,
+                ),
             )
         else:
             cur.execute(
@@ -78,11 +123,51 @@ def report():
                     hostname,
                     ip_address,
                     os_name,
+                    current_user,
+                    is_online,
+                    cpu_percent,
+                    ram_percent,
+                    ram_used,
+                    ram_total,
+                    disk_used,
+                    disk_total,
+                    disk_percent,
+                    net_up_bps,
+                    net_down_bps,
+                    cpu_temp,
+                    gpu_name,
+                    gpu_load,
+                    gpu_temp,
+                    gpu_mem_used_mb,
+                    gpu_mem_total_mb,
+                    uptime_seconds,
                     last_seen,
-                    is_online
-                ) VALUES (?, ?, ?, ?, 1)
+                    updated_at
+                ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """,
-                (hostname, ip_address, os_name, now),
+                (
+                    hostname,
+                    ip_address,
+                    os_name,
+                    current_user,
+                    cpu_percent,
+                    ram.get("percent", 0),
+                    ram.get("used", 0),
+                    ram.get("total", 0),
+                    disk.get("used", 0),
+                    disk.get("total", 0),
+                    disk.get("percent", 0),
+                    network.get("up_bps", 0),
+                    network.get("down_bps", 0),
+                    cpu_temp,
+                    gpu.get("name"),
+                    gpu.get("load_percent"),
+                    gpu.get("temperature"),
+                    gpu.get("memory_used_mb"),
+                    gpu.get("memory_total_mb"),
+                    uptime_seconds,
+                    now,
+                ),
             )
             machine_id = cur.lastrowid
             log_event(
@@ -118,9 +203,10 @@ def report():
                 gpu_load,
                 gpu_mem_used_mb,
                 gpu_mem_total_mb,
-                gpu_temp
+                gpu_temp,
+                gpu_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 machine_id,
@@ -145,6 +231,7 @@ def report():
                 gpu.get("memory_used_mb"),
                 gpu.get("memory_total_mb"),
                 gpu.get("temperature"),
+                json.dumps(gpus) if gpus else None,
             ),
         )
 

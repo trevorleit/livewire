@@ -17,20 +17,24 @@ def _redirect_after_action(machine_id=None):
     return redirect(url_for("actions.actions"))
 
 
+def _clean_text(value, fallback=""):
+    return str(value or fallback).strip()
+
+
 @actions_bp.route("/actions", methods=["GET", "POST"])
 def actions():
     if request.method == "POST":
-        form_type = request.form.get("form_type", "").strip()
+        form_type = _clean_text(request.form.get("form_type"))
 
         try:
             if form_type == "create_command":
-                machine_id_raw = request.form.get("machine_id", "").strip()
+                machine_id_raw = _clean_text(request.form.get("machine_id"))
                 if not machine_id_raw.isdigit():
                     flash("A valid machine is required.", "warning")
                     return redirect(url_for("actions.actions"))
 
                 machine_id = int(machine_id_raw)
-                action_type = request.form.get("action_type", "").strip()
+                action_type = _clean_text(request.form.get("action_type"))
                 payload = {}
 
                 if not action_type:
@@ -38,14 +42,14 @@ def actions():
                     return _redirect_after_action(machine_id)
 
                 if action_type == "restart_service":
-                    service_name = request.form.get("service_name", "").strip()
+                    service_name = _clean_text(request.form.get("service_name"))
                     if not service_name:
                         flash("Service name is required for restart_service.", "warning")
                         return _redirect_after_action(machine_id)
                     payload["service_name"] = service_name
 
                 elif action_type == "stop_process":
-                    pid = request.form.get("pid", "").strip()
+                    pid = _clean_text(request.form.get("pid"))
                     if not pid:
                         flash("PID is required for stop_process.", "warning")
                         return _redirect_after_action(machine_id)
@@ -55,18 +59,22 @@ def actions():
                     payload["pid"] = int(pid)
 
                 elif action_type == "reboot_machine":
-                    delay_raw = request.form.get("delay_seconds", "5").strip() or "5"
+                    delay_raw = _clean_text(request.form.get("delay_seconds"), "5") or "5"
                     if not delay_raw.isdigit():
                         flash("Delay seconds must be a number.", "warning")
                         return _redirect_after_action(machine_id)
                     payload["delay_seconds"] = int(delay_raw)
+
+                else:
+                    flash("Unsupported action type.", "warning")
+                    return _redirect_after_action(machine_id)
 
                 create_command(machine_id, action_type, json.dumps(payload), "dashboard_admin")
                 flash("Remote command created.", "success")
                 return _redirect_after_action(machine_id)
 
             elif form_type == "approve_command":
-                command_id_raw = request.form.get("command_id", "").strip()
+                command_id_raw = _clean_text(request.form.get("command_id"))
                 if not command_id_raw.isdigit():
                     flash("Invalid command id.", "warning")
                     return redirect(url_for("actions.actions"))
@@ -76,7 +84,7 @@ def actions():
                 return redirect(url_for("actions.actions"))
 
             elif form_type == "cancel_command":
-                command_id_raw = request.form.get("command_id", "").strip()
+                command_id_raw = _clean_text(request.form.get("command_id"))
                 if not command_id_raw.isdigit():
                     flash("Invalid command id.", "warning")
                     return redirect(url_for("actions.actions"))
@@ -91,7 +99,7 @@ def actions():
 
         except Exception as exc:
             flash(f"Action failed: {exc}", "error")
-            machine_id_raw = request.form.get("machine_id", "").strip()
+            machine_id_raw = _clean_text(request.form.get("machine_id"))
             if machine_id_raw.isdigit():
                 return _redirect_after_action(int(machine_id_raw))
             return redirect(url_for("actions.actions"))
@@ -116,6 +124,8 @@ def actions():
             SELECT
                 rc.*,
                 COALESCE(m.display_name, m.hostname) AS machine_label,
+                m.is_online,
+                m.machine_role,
                 sj.job_name AS scheduled_job_name
             FROM remote_commands rc
             JOIN machines m ON m.id = rc.machine_id

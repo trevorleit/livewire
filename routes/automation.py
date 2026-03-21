@@ -43,6 +43,10 @@ def _safe_int(value, default=None):
         return default
 
 
+def _clean_text(value, fallback=""):
+    return str(value or fallback).strip()
+
+
 @automation_bp.route("/automation", methods=["GET", "POST"])
 def automation():
     if request.method == "POST":
@@ -50,9 +54,9 @@ def automation():
 
         try:
             if form_type == "create_group":
-                group_name = request.form.get("group_name", "").strip()
-                description = request.form.get("description", "").strip()
-                color_hex = request.form.get("color_hex", "#60a5fa").strip()
+                group_name = _clean_text(request.form.get("group_name"))
+                description = _clean_text(request.form.get("description"))
+                color_hex = _clean_text(request.form.get("color_hex"), "#00cc66") or "#00cc66"
 
                 if not group_name:
                     flash("Group name is required.", "warning")
@@ -81,18 +85,18 @@ def automation():
                     flash("Invalid group or machine selection.", "warning")
 
             elif form_type == "create_job":
-                job_name = request.form.get("job_name", "").strip()
-                description = request.form.get("description", "").strip()
-                action_type = request.form.get("action_type", "").strip()
-                target_type = request.form.get("target_type", "machine").strip()
+                job_name = _clean_text(request.form.get("job_name"))
+                description = _clean_text(request.form.get("description"))
+                action_type = _clean_text(request.form.get("action_type"))
+                target_type = _clean_text(request.form.get("target_type"), "machine")
 
                 machine_target_id = _safe_int(request.form.get("machine_target_id"))
                 group_target_id = _safe_int(request.form.get("group_target_id"))
                 interval_minutes = _safe_int(request.form.get("interval_minutes", "60"), 60)
 
-                service_name = request.form.get("service_name", "").strip()
-                pid = request.form.get("pid", "").strip()
-                delay_seconds = request.form.get("delay_seconds", "5").strip()
+                service_name = _clean_text(request.form.get("service_name"))
+                pid = _clean_text(request.form.get("pid"))
+                delay_seconds = _clean_text(request.form.get("delay_seconds"), "5")
 
                 target_id = None
                 if target_type == "machine":
