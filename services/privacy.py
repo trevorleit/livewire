@@ -1,7 +1,24 @@
 from __future__ import annotations
 
+import re
+
 
 TRUTHY_VALUES = {"1", "true", "yes", "on", "enabled"}
+
+
+IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+DOMAIN_USER_RE = re.compile(r"\b[A-Za-z0-9._-]+\\[A-Za-z0-9._-]+\b")
+
+# Device / hostname style examples:
+# DESKTOP-ABCD123
+# NODE_01
+# SERVER-01
+# LAPTOP-XYZ9
+HOSTNAME_LIKE_RE = re.compile(r"\b[A-Za-z0-9]{3,}[-_][A-Za-z0-9._-]{2,}\b")
+
+# Loose IPv6-ish matcher
+IPV6_RE = re.compile(r"\b(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{1,4}\b")
 
 
 def _is_truthy(value) -> bool:
@@ -59,6 +76,20 @@ def mask_device_id(value: str | None) -> str:
     return f"{text[:2]}****{text[-2:]}"
 
 
+def mask_freeform_text(value: str | None) -> str:
+    text = str(value or "")
+    if not text:
+        return text
+
+    text = IPV4_RE.sub(lambda m: mask_ip(m.group(0)), text)
+    text = IPV6_RE.sub(lambda m: mask_ip(m.group(0)), text)
+    text = DOMAIN_USER_RE.sub("User-****", text)
+    text = EMAIL_RE.sub("User-****", text)
+    text = HOSTNAME_LIKE_RE.sub(lambda m: mask_hostname(m.group(0)), text)
+
+    return text
+
+
 def maybe_mask_ip(value: str | None, enabled: bool) -> str:
     return mask_ip(value) if enabled else str(value or "")
 
@@ -73,3 +104,7 @@ def maybe_mask_user(value: str | None, enabled: bool) -> str:
 
 def maybe_mask_device_id(value: str | None, enabled: bool) -> str:
     return mask_device_id(value) if enabled else str(value or "")
+
+
+def maybe_mask_freeform_text(value: str | None, enabled: bool) -> str:
+    return mask_freeform_text(value) if enabled else str(value or "")

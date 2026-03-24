@@ -220,6 +220,7 @@
             </thead>
             <tbody>
                 {% for row in alert_rows %}
+                {% set masked_message = maybe_mask_freeform_text(row.message, privacy_mode) %}
                 <tr class="{{ 'alert-row-open' if not row.is_resolved else 'alert-row-resolved' }}">
                     <td>
                         {% if row.is_resolved %}
@@ -250,7 +251,7 @@
                     </td>
 
                     <td class="alerts-message-cell">
-                        <div class="alerts-message">{{ row.message }}</div>
+                        <div class="alerts-message">{{ masked_message }}</div>
                     </td>
 
                     <td>
