@@ -1,0 +1,2090 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="panel inventory-shell">
+  <div class="panel-header inventory-header">
+    <div>
+      <div class="eyebrow">Asset Labeling & Organization</div>
+      <h2>Inventory</h2>
+      <p>Label machines, assign roles and locations, and build a cleaner source of truth for your environment.</p>
+    </div>
+
+    <div class="inventory-header-badges">
+      <span class="status-pill pill-muted">{{ summary.total_machines }} machine{{ '' if summary.total_machines == 1 else 's' }}</span>
+      <span class="status-pill pill-online">{{ summary.online_count }} online</span>
+      <span class="status-pill pill-offline">{{ summary.offline_count }} offline</span>
+      {% if summary.attention_count %}
+        <span class="status-pill pill-warning">{{ summary.attention_count }} need attention</span>
+      {% endif %}
+      {% if tag_options %}
+        <span class="status-pill pill-muted">{{ tag_options|length }} available tag{{ '' if tag_options|length == 1 else 's' }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if privacy_mode %}
+  <section class="panel" style="margin-bottom:18px; border-color: rgba(251,191,36,.22); box-shadow:0 0 0 1px rgba(251,191,36,.08);">
+    <div class="panel-header" style="margin-bottom:0;">
+      <div>
+        <h3 style="margin-bottom:6px;">Privacy Mode Active</h3>
+        <p style="margin:0;">Sensitive inventory details such as IP addresses, hostnames, and usernames are masked in this view.</p>
+      </div>
+      <span class="status-pill pill-warning">Masked View</span>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="summary-grid inventory-summary-grid">
+    <div class="summary-card status-good">
+      <div class="summary-card-inner">
+        <div class="summary-top">
+          <div>
+            <div class="summary-kicker">Fleet</div>
+            <div class="summary-value">{{ summary.total_machines }}</div>
+          </div>
+          <div class="summary-trend good">▣</div>
+        </div>
+        <div class="summary-subtext">Total machines currently known to Inventory.</div>
+        <div class="summary-meta">
+          <span class="summary-chip">{{ summary.visible_machines }} visible</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-card {{ 'status-good' if summary.labeled_count == summary.total_machines and summary.total_machines > 0 else 'status-warn' }}">
+      <div class="summary-card-inner">
+        <div class="summary-top">
+          <div>
+            <div class="summary-kicker">Named Assets</div>
+            <div class="summary-value">{{ summary.labeled_count }}</div>
+          </div>
+          <div class="summary-trend {{ 'good' if summary.labeled_count == summary.total_machines and summary.total_machines > 0 else 'warn' }}">✎</div>
+        </div>
+        <div class="summary-subtext">Machines with an operator-friendly display name configured.</div>
+      </div>
+    </div>
+
+    <div class="summary-card {{ 'status-good' if summary.role_assigned_count > 0 else 'status-warn' }}">
+      <div class="summary-card-inner">
+        <div class="summary-top">
+          <div>
+            <div class="summary-kicker">Roles Assigned</div>
+            <div class="summary-value">{{ summary.role_assigned_count }}</div>
+          </div>
+          <div class="summary-trend {{ 'good' if summary.role_assigned_count > 0 else 'warn' }}">⌘</div>
+        </div>
+        <div class="summary-subtext">Machines classified for targeting, reporting, and response.</div>
+        <div class="summary-meta">
+          <span class="summary-chip">{{ summary.location_count }} with location</span>
+          <span class="summary-chip">{{ tag_options|length }} tags available</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-card {{ 'status-good' if summary.notes_count > 0 else 'status-warn' }}">
+      <div class="summary-card-inner">
+        <div class="summary-top">
+          <div>
+            <div class="summary-kicker">Documented</div>
+            <div class="summary-value">{{ summary.notes_count }}</div>
+          </div>
+          <div class="summary-trend {{ 'good' if summary.notes_count > 0 else 'warn' }}">🛈</div>
+        </div>
+        <div class="summary-subtext">Machines with notes for ownership, maintenance, or deployment context.</div>
+        <div class="summary-meta">
+          <span class="summary-chip">{{ summary.stale_count }} stale</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel inventory-filter-panel">
+    <div class="panel-header split-header">
+      <div>
+        <h3>Inventory Filters</h3>
+        <p>Quickly narrow the fleet by status, role, operating system, tag, and sort/group controls.</p>
+      </div>
+      <span class="summary-chip">{{ summary.visible_machines }} shown</span>
+    </div>
+
+    <form method="get" class="inventory-filter-bar" id="inventoryFilterForm">
+      <div class="inventory-filter-grid inventory-filter-grid-extended">
+        <label class="field inventory-search-field">
+          <span>Search</span>
+          <input
+            type="text"
+            name="q"
+            value="{{ search_text or '' }}"
+            placeholder="{% if privacy_mode %}Masked search active{% else %}Hostname, display name, IP, user, role, notes{% endif %}"
+          >
+        </label>
+
+        <label class="field">
+          <span>Status</span>
+          <select name="status">
+            <option value="all" {% if (status_filter or 'all') == 'all' %}selected{% endif %}>All</option>
+            <option value="online" {% if status_filter == 'online' %}selected{% endif %}>Online</option>
+            <option value="offline" {% if status_filter == 'offline' %}selected{% endif %}>Offline</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Role</span>
+          <select name="role">
+            <option value="all" {% if (role_filter or 'all') == 'all' %}selected{% endif %}>All</option>
+            {% for role in role_options %}
+              {% set role_value = role|lower %}
+              <option value="{{ role_value }}" {% if role_filter == role_value %}selected{% endif %}>{{ role }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field">
+          <span>OS</span>
+          <select name="os">
+            <option value="all" {% if (os_filter or 'all') == 'all' %}selected{% endif %}>All</option>
+            <option value="windows" {% if os_filter == 'windows' %}selected{% endif %}>Windows</option>
+            <option value="linux" {% if os_filter == 'linux' %}selected{% endif %}>Linux</option>
+            <option value="macos" {% if os_filter == 'macos' %}selected{% endif %}>macOS</option>
+            <option value="other" {% if os_filter == 'other' %}selected{% endif %}>Other</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Tag</span>
+          <select name="tag">
+            <option value="all" {% if (tag_filter or 'all') == 'all' %}selected{% endif %}>All</option>
+            {% for tag in tag_options %}
+              {% set tag_value = tag|lower %}
+              <option value="{{ tag_value }}" {% if tag_filter == tag_value %}selected{% endif %}>{{ tag }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Sort</span>
+          <select name="sort">
+            <option value="attention" {% if (sort or 'attention') == 'attention' %}selected{% endif %}>Needs attention first</option>
+            <option value="last_seen_desc" {% if sort == 'last_seen_desc' %}selected{% endif %}>Last seen newest</option>
+            <option value="last_seen_asc" {% if sort == 'last_seen_asc' %}selected{% endif %}>Last seen oldest</option>
+            <option value="name" {% if sort == 'name' %}selected{% endif %}>Name A–Z</option>
+            <option value="role" {% if sort == 'role' %}selected{% endif %}>Role A–Z</option>
+            <option value="location" {% if sort == 'location' %}selected{% endif %}>Location A–Z</option>
+            <option value="online" {% if sort == 'online' %}selected{% endif %}>Online first</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Group</span>
+          <select name="group">
+            <option value="none" {% if (group or 'none') == 'none' %}selected{% endif %}>No grouping</option>
+            <option value="role" {% if group == 'role' %}selected{% endif %}>Group by role</option>
+            <option value="location" {% if group == 'location' %}selected{% endif %}>Group by location</option>
+            <option value="status" {% if group == 'status' %}selected{% endif %}>Group by status</option>
+          </select>
+        </label>
+
+        <input type="hidden" name="quick" value="{{ quick or 'all' }}">
+
+        <div class="filter-actions">
+          <button type="submit" class="button-primary">Apply Filters</button>
+          <a class="button-secondary button-link" href="{{ url_for('inventory.inventory') }}">Reset</a>
+          <a
+            class="button-secondary button-link"
+            href="{{ url_for('inventory.export_inventory_csv', q=search_text or '', status=status_filter or 'all', role=role_filter or 'all', os=os_filter or 'all', tag=tag_filter or 'all', sort=sort or 'attention', quick=quick or 'all') }}"
+          >
+            Export CSV
+          </a>
+        </div>
+      </div>
+
+      <div class="filter-summary-row">
+        <span class="summary-chip">{{ summary.visible_machines }} visible</span>
+        {% if summary.visible_machines != summary.total_machines %}
+          <span class="summary-chip">{{ summary.total_machines }} total</span>
+        {% endif %}
+        <span class="summary-chip">Stale threshold: {{ aging_after_seconds }}s</span>
+        {% if search_text %}
+          <span class="summary-chip">Search: {{ search_text }}</span>
+        {% endif %}
+        {% if status_filter != 'all' %}
+          <span class="summary-chip">Status: {{ status_filter|title }}</span>
+        {% endif %}
+        {% if role_filter != 'all' %}
+          <span class="summary-chip">Role: {{ role_filter|title }}</span>
+        {% endif %}
+        {% if os_filter != 'all' %}
+          <span class="summary-chip">OS: {{ os_filter|title }}</span>
+        {% endif %}
+        {% if tag_filter != 'all' %}
+          <span class="summary-chip">Tag: {{ tag_filter|title }}</span>
+        {% endif %}
+        {% if quick and quick != 'all' %}
+          <span class="summary-chip">Quick: {{ quick|replace('_', ' ')|title }}</span>
+        {% endif %}
+        {% if sort and sort != 'attention' %}
+          <span class="summary-chip">Sort: {{ sort|replace('_', ' ')|title }}</span>
+        {% endif %}
+        {% if group and group != 'none' %}
+          <span class="summary-chip">Group: {{ group|title }}</span>
+        {% endif %}
+      </div>
+
+      <div class="inventory-quick-filter-row">
+        <a class="inventory-quick-chip {{ 'is-active' if (quick or 'all') == 'attention' else '' }}"
+           href="{{ url_for('inventory.inventory', q=search_text or '', status=status_filter or 'all', role=role_filter or 'all', os=os_filter or 'all', tag=tag_filter or 'all', sort=sort or 'attention', group=group or 'none', quick='attention') }}">
+          <span>Needs Attention</span>
+          <strong>{{ quick_filter_counts.attention }}</strong>
+        </a>
+        <a class="inventory-quick-chip {{ 'is-active' if quick == 'offline' else '' }}"
+           href="{{ url_for('inventory.inventory', q=search_text or '', status=status_filter or 'all', role=role_filter or 'all', os=os_filter or 'all', tag=tag_filter or 'all', sort=sort or 'attention', group=group or 'none', quick='offline') }}">
+          <span>Offline</span>
+          <strong>{{ quick_filter_counts.offline }}</strong>
+        </a>
+        <a class="inventory-quick-chip {{ 'is-active' if quick == 'stale' else '' }}"
+           href="{{ url_for('inventory.inventory', q=search_text or '', status=status_filter or 'all', role=role_filter or 'all', os=os_filter or 'all', tag=tag_filter or 'all', sort=sort or 'attention', group=group or 'none', quick='stale') }}">
+          <span>Stale</span>
+          <strong>{{ quick_filter_counts.stale }}</strong>
+        </a>
+        <a class="inventory-quick-chip {{ 'is-active' if quick == 'missing_role' else '' }}"
+           href="{{ url_for('inventory.inventory', q=search_text or '', status=status_filter or 'all', role=role_filter or 'all', os=os_filter or 'all', tag=tag_filter or 'all', sort=sort or 'attention', group=group or 'none', quick='missing_role') }}">
+          <span>Missing Role</span>
+          <strong>{{ quick_filter_counts.missing_role }}</strong>
+        </a>
+        <a class="inventory-quick-chip {{ 'is-active' if quick == 'missing_location' else '' }}"
+           href="{{ url_for('inventory.inventory', q=search_text or '', status=status_filter or 'all', role=role_filter or 'all', os=os_filter or 'all', tag=tag_filter or 'all', sort=sort or 'attention', group=group or 'none', quick='missing_location') }}">
+          <span>Missing Location</span>
+          <strong>{{ quick_filter_counts.missing_location }}</strong>
+        </a>
+        <a class="inventory-quick-chip {{ 'is-active' if quick == 'missing_notes' else '' }}"
+           href="{{ url_for('inventory.inventory', q=search_text or '', status=status_filter or 'all', role=role_filter or 'all', os=os_filter or 'all', tag=tag_filter or 'all', sort=sort or 'attention', group=group or 'none', quick='missing_notes') }}">
+          <span>Missing Notes</span>
+          <strong>{{ quick_filter_counts.missing_notes }}</strong>
+        </a>
+        <a class="inventory-quick-chip {{ 'is-active' if quick == 'critical' else '' }}"
+           href="{{ url_for('inventory.inventory', q=search_text or '', status=status_filter or 'all', role=role_filter or 'all', os=os_filter or 'all', tag=tag_filter or 'all', sort=sort or 'attention', group=group or 'none', quick='critical') }}">
+          <span>Tagged Critical</span>
+          <strong>{{ quick_filter_counts.critical }}</strong>
+        </a>
+        {% if quick and quick != 'all' %}
+          <a class="inventory-quick-chip inventory-quick-chip-clear"
+             href="{{ url_for('inventory.inventory', q=search_text or '', status=status_filter or 'all', role=role_filter or 'all', os=os_filter or 'all', tag=tag_filter or 'all', sort=sort or 'attention', group=group or 'none', quick='all') }}">
+            <span>Clear Quick Filter</span>
+          </a>
+        {% endif %}
+      </div>
+
+    </form>
+  </section>
+
+  <div class="inventory-utility-row">
+    <div class="inventory-selection-controls">
+      <button type="button" class="button-secondary inventory-select-button" id="inventorySelectAllVisible">Select all visible</button>
+      <button type="button" class="button-secondary inventory-select-button" id="inventorySelectFlaggedOnly">Select flagged only</button>
+      <button type="button" class="button-secondary inventory-select-button" id="inventorySelectOffline">Select offline</button>
+      <button type="button" class="button-secondary inventory-select-button" id="inventorySelectStale">Select stale</button>
+      <button type="button" class="button-secondary inventory-select-button" id="inventoryClearSelection">Clear</button>
+      <span class="summary-chip" id="inventorySelectionSummary">0 selected</span>
+    </div>
+  </div>
+
+  <div class="inventory-groups">
+    {% if grouped_machines %}
+      {% for group_name, group_items in grouped_machines.items() %}
+        <section class="inventory-group-section">
+          {% if group != 'none' %}
+            {% set group_online = group_items | selectattr('is_online') | list | length %}
+            {% set group_total = group_items | length %}
+            {% set group_offline = group_total - group_online %}
+            {% set group_attention = group_items | selectattr('flags') | list | length %}
+            <div class="inventory-group-header">
+              <div>
+                <h3>{{ group_name }}</h3>
+                <p>{{ group_total }} machine{{ '' if group_total == 1 else 's' }} in this group.</p>
+              </div>
+              <div class="inventory-group-badges">
+                <span class="status-pill pill-online">{{ group_online }} online</span>
+                <span class="status-pill pill-offline">{{ group_offline }} offline</span>
+                {% if group_attention %}
+                  <span class="status-pill pill-warning">{{ group_attention }} need attention</span>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="inventory-list">
+            {% for machine in group_items %}
+              {% set tags_csv = machine.tag_names | default(machine.tags) | join(', ') %}
+              {% set has_stale = false %}
+              {% for flag in machine.inventory_flags or machine.flags %}
+                {% if flag.label == 'Stale' %}
+                  {% set has_stale = true %}
+                {% endif %}
+              {% endfor %}
+              <form method="post"
+                    class="inventory-card inventory-machine-card"
+                    data-machine-card="{{ machine.id }}"
+                    data-machine-id="{{ machine.id }}"
+                    data-online="{{ 1 if machine.is_online else 0 }}"
+                    data-needs-attention="{{ 1 if (machine.inventory_flags or machine.flags) else 0 }}"
+                    data-missing-role="{{ 1 if not machine.machine_role else 0 }}"
+                    data-missing-location="{{ 1 if not machine.location else 0 }}"
+                    data-missing-notes="{{ 1 if not machine.notes else 0 }}"
+                    data-stale="{{ 1 if has_stale else 0 }}">
+                <input type="hidden" name="machine_id" value="{{ machine.id }}">
+
+                <div class="inventory-title inventory-title-row">
+                  <div class="inventory-title-left">
+                    <label class="inventory-select-toggle" title="Select machine for bulk actions">
+                      <input type="checkbox" class="inventory-select-checkbox" data-machine-select="{{ machine.id }}">
+                      <span></span>
+                    </label>
+                    <div>
+                      <h3>{{ machine.display_name or (mask_host(machine.hostname) if privacy_mode else machine.hostname) }}</h3>
+                      <div class="muted">
+                        {{ mask_host(machine.hostname) if privacy_mode else machine.hostname }}
+                        • {{ mask_ip(machine.ip_address) if privacy_mode else (machine.ip_address or 'No IP') }}
+                        • {{ machine.os_name or 'Unknown OS' }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="inventory-top-actions">
+                    <div class="card-badges" data-card-badges="{{ machine.id }}">
+                      {% if machine.machine_role %}
+                        <span class="status-pill pill-muted" data-role-pill>{{ machine.machine_role }}</span>
+                      {% endif %}
+                      <span class="status-pill {{ 'pill-online' if machine.is_online else 'pill-offline' }}" data-status-pill>
+                        {{ 'Online' if machine.is_online else 'Offline' }}
+                      </span>
+                    </div>
+                    <button type="button" class="button-secondary inventory-open-button" data-machine-id="{{ machine.id }}">
+                      Deep View
+                    </button>
+                  </div>
+                </div>
+
+                {% if machine.inventory_flags or machine.flags %}
+                  <div class="inventory-flag-row" data-flag-row="{{ machine.id }}">
+                    {% for flag in machine.inventory_flags or machine.flags %}
+                      <span class="status-pill {{ flag.pill_class }}">{{ flag.label }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+
+                <div class="inventory-tag-row" data-tag-row="{{ machine.id }}">
+                  {% if machine.tags %}
+                    {% for tag in machine.tags %}
+                      {% set tag_name = tag.name if tag is mapping else tag %}
+                      {% if tag_name %}<span class="status-pill pill-muted inventory-tag-pill">#{{ tag_name }}</span>{% endif %}
+                    {% endfor %}
+                  {% else %}
+                    <span class="status-pill pill-muted inventory-tag-pill inventory-tag-empty">No tags</span>
+                  {% endif %}
+                </div>
+
+                <div class="inventory-meta-grid">
+                  <div class="stat-box">
+                    <span class="stat-label">Current User</span>
+                    <strong>{{ mask_user(machine.current_user) if privacy_mode else (machine.current_user or 'N/A') }}</strong>
+                  </div>
+
+                  <div class="stat-box">
+                    <span class="stat-label">Location</span>
+                    <strong data-location-value>{{ machine.location or 'Unassigned' }}</strong>
+                  </div>
+
+                  <div class="stat-box">
+                    <span class="stat-label">Last Seen</span>
+                    <strong data-last-seen>{{ machine.last_seen_label or format_last_seen(machine.last_seen) }}</strong>
+                  </div>
+
+                  <div class="stat-box">
+                    <span class="stat-label">Hostname</span>
+                    <strong>{{ mask_host(machine.hostname) if privacy_mode else machine.hostname }}</strong>
+                  </div>
+                </div>
+
+                <div class="settings-grid">
+                  <label class="field">
+                    <span>Display name</span>
+                    <input type="text" name="display_name" value="{{ machine.display_name or '' }}" placeholder="Reception PC">
+                    <small class="helper-text">Operator-friendly name used across the UI.</small>
+                  </label>
+
+                  <label class="field">
+                    <span>Role</span>
+                    <input type="text" name="machine_role" value="{{ machine.machine_role or '' }}" placeholder="workstation, server, kiosk" data-role-input>
+                    <small class="helper-text">Useful for grouping and remediation targeting.</small>
+                  </label>
+
+                  <label class="field">
+                    <span>Location</span>
+                    <input type="text" name="location" value="{{ machine.location or '' }}" placeholder="Front office, rack A, lab" data-location-input>
+                    <small class="helper-text">Helps operators locate the device quickly.</small>
+                  </label>
+
+                  <label class="field field-wide">
+                    <span>Tags</span>
+                    <input type="text" name="tags" value="{{ tags_csv }}" placeholder="production, lab, gpu, critical" data-tags-input>
+                    <small class="helper-text">Comma-separated operational tags for filtering, grouping, and future automation.</small>
+                  </label>
+
+                  <label class="field field-wide">
+                    <span>Notes</span>
+                    <textarea name="notes" rows="3" placeholder="Owner, hardware notes, maintenance details, or deployment notes" data-notes-input>{{ machine.notes or '' }}</textarea>
+                    <small class="helper-text">Internal notes for troubleshooting, ownership, or operational context.</small>
+                  </label>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="button-primary">Save Machine</button>
+                </div>
+              </form>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <h3>No machines found.</h3>
+        <p>Wait for the agent to check in or broaden the current filters.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<div class="inventory-bulk-bar" id="inventoryBulkBar" aria-hidden="true">
+  <div class="inventory-bulk-shell">
+    <div class="inventory-bulk-summary">
+      <div class="eyebrow">Bulk Actions</div>
+      <strong id="inventoryBulkCount">0 selected</strong>
+      <span class="muted">Apply changes across the currently selected machines.</span>
+    </div>
+
+    <div class="inventory-bulk-controls">
+      <label class="field">
+        <span>Action</span>
+        <select id="inventoryBulkAction">
+          <option value="set_role">Assign role</option>
+          <option value="set_location">Assign location</option>
+          <option value="replace_notes">Replace notes</option>
+          <option value="append_notes">Append notes</option>
+          <option value="clear_notes">Clear notes</option>
+          <option value="add_tags">Add tags</option>
+          <option value="remove_tags">Remove tags</option>
+          <option value="replace_tags">Replace tags</option>
+          <option value="clear_tags">Clear tags</option>
+        </select>
+      </label>
+
+      <label class="field field-wide" id="inventoryBulkValueWrap">
+        <span>Value</span>
+        <textarea id="inventoryBulkValue" rows="2" placeholder="Enter the role, location, or note text to apply..."></textarea>
+      </label>
+    </div>
+
+    <div class="inventory-bulk-actions">
+      <button type="button" class="button-primary" id="inventoryBulkApply">Apply to Selected</button>
+      <button type="button" class="button-secondary" id="inventoryBulkCancel">Clear Selection</button>
+    </div>
+  </div>
+</div>
+
+<div class="inventory-toast-stack" id="inventoryToastStack"></div>
+
+<div class="inventory-modal" id="machineDeepViewModal" aria-hidden="true" hidden>
+  <div class="inventory-modal-backdrop" data-close-modal></div>
+  <div class="inventory-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="machineDeepViewTitle">
+    <div class="inventory-modal-shell">
+      <div class="inventory-modal-header">
+        <div>
+          <div class="eyebrow">Machine Deep View</div>
+          <h3 id="machineDeepViewTitle">Loading machine…</h3>
+          <p class="muted" id="machineDeepViewSubtext">Preparing machine summary.</p>
+        </div>
+        <div class="inventory-modal-actions">
+          <a class="button-secondary button-link" id="machineDeepViewPageLink" href="#">Full Page</a>
+          <button type="button" class="inventory-modal-close" data-close-modal aria-label="Close machine deep view">×</button>
+        </div>
+      </div>
+
+      <div class="inventory-modal-body" id="machineDeepViewBody">
+        <div class="inventory-modal-loading">
+          <div class="inventory-spinner"></div>
+          <div>
+            <strong>Loading machine intelligence</strong>
+            <div class="muted">Fetching live telemetry, alerts, commands, and notes.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.inventory-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.inventory-header-badges,
+.inventory-flag-row,
+.inventory-meta-pills,
+.inventory-list-pills,
+.inventory-software-list,
+.inventory-group-badges{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.inventory-header-badges{
+  justify-content:flex-end;
+}
+
+.inventory-summary-grid,
+.inventory-filter-panel{
+  margin-bottom:18px;
+}
+
+.inventory-filter-bar{
+  margin-top:4px;
+  padding:16px;
+  border:1px solid rgba(255,255,255,.05);
+  border-radius:18px;
+  background:rgba(255,255,255,.015);
+}
+
+.inventory-filter-grid{
+  display:grid;
+  gap:12px;
+  align-items:end;
+}
+
+.inventory-filter-grid-extended{
+  grid-template-columns:minmax(240px, 2fr) repeat(6, minmax(140px, 1fr)) auto;
+}
+
+.inventory-search-field{ min-width:0; }
+
+.filter-summary-row{
+  margin-top:12px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.inventory-quick-filter-row{
+  margin-top:14px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+.inventory-quick-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.02);
+  color:var(--text);
+  text-decoration:none;
+  transition:.18s ease;
+}
+
+.inventory-quick-chip strong{
+  color:#cfe8d8;
+  font-size:12px;
+}
+
+.inventory-quick-chip:hover{
+  border-color:rgba(0,204,102,.22);
+  background:rgba(0,204,102,.06);
+  transform:translateY(-1px);
+}
+
+.inventory-quick-chip.is-active{
+  border-color:rgba(0,204,102,.42);
+  background:rgba(0,204,102,.12);
+  box-shadow:0 0 0 1px rgba(0,204,102,.14);
+}
+
+.inventory-quick-chip-clear{
+  border-style:dashed;
+}
+
+.inventory-utility-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:16px;
+}
+
+.inventory-selection-controls{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.inventory-groups{
+  display:grid;
+  gap:22px;
+}
+
+.inventory-group-section{
+  display:grid;
+  gap:14px;
+}
+
+.inventory-group-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  padding:14px 16px;
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:18px;
+  background:rgba(255,255,255,.018);
+}
+
+.inventory-group-header h3{
+  margin:0 0 4px;
+}
+
+.inventory-group-header p{
+  margin:0;
+  color:var(--muted);
+}
+
+.inventory-list{
+  display:grid;
+  gap:18px;
+}
+
+.inventory-machine-card{
+  position:relative;
+  display:grid;
+  gap:16px;
+  padding:18px;
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(255,255,255,.025) 0%, rgba(255,255,255,.012) 100%);
+  backdrop-filter:blur(6px);
+  transition:all .25s ease;
+}
+
+.inventory-machine-card:hover{
+  transform:translateY(-3px);
+  box-shadow:0 8px 30px rgba(0,0,0,.45), 0 0 0 1px rgba(0,204,102,.15);
+}
+
+.inventory-machine-card.is-selected{
+  border-color:rgba(0,204,102,.45);
+  box-shadow:0 0 0 1px rgba(0,204,102,.18), 0 10px 26px rgba(0,0,0,.34);
+}
+
+.inventory-machine-card::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:20px;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .25s ease;
+  background:linear-gradient(120deg, rgba(0,204,102,.08), transparent 40%, transparent 60%, rgba(0,204,102,.08));
+}
+
+.inventory-machine-card:hover::after{
+  opacity:1;
+}
+
+.inventory-title-row{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.inventory-title-left{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+}
+
+.inventory-title h3{
+  font-size:18px;
+  margin-bottom:4px;
+}
+
+.inventory-select-toggle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:3px;
+}
+
+.inventory-select-toggle input{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+
+.inventory-select-toggle span{
+  width:18px;
+  height:18px;
+  border-radius:6px;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.03);
+  display:inline-block;
+  position:relative;
+  transition:.18s ease;
+}
+
+.inventory-select-toggle input:checked + span{
+  border-color:#00cc66;
+  background:rgba(0,204,102,.18);
+  box-shadow:0 0 0 1px rgba(0,204,102,.18);
+}
+
+.inventory-select-toggle input:checked + span::after{
+  content:"";
+  position:absolute;
+  left:5px;
+  top:1px;
+  width:5px;
+  height:10px;
+  border:solid #00cc66;
+  border-width:0 2px 2px 0;
+  transform:rotate(45deg);
+}
+
+.inventory-top-actions{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.inventory-open-button{ min-width:124px; }
+
+.inventory-flag-row{
+  align-items:center;
+  padding:2px 0 0;
+}
+
+.inventory-tag-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:10px 0 14px;
+}
+
+.inventory-tag-pill{
+  border-color:rgba(0,204,102,0.24);
+  background:rgba(0,204,102,0.1);
+}
+
+.inventory-tag-empty{
+  opacity:.72;
+}
+
+.inventory-meta-grid,
+.inventory-kv-grid,
+.inventory-metric-grid,
+.inventory-gpu-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
+  gap:12px;
+}
+
+.stat-box,
+.inventory-kv,
+.inventory-metric,
+.inventory-gpu-card,
+.inventory-list-item{
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:14px;
+  padding:10px 12px;
+  transition:.2s ease;
+}
+
+.stat-box:hover,
+.inventory-kv:hover,
+.inventory-metric:hover,
+.inventory-gpu-card:hover,
+.inventory-list-item:hover{
+  border-color:rgba(0,204,102,.22);
+  background:rgba(0,204,102,.05);
+}
+
+.stat-label,
+.inventory-kv span,
+.inventory-metric span,
+.inventory-gpu-card span{
+  display:block;
+  font-size:11px;
+  opacity:.7;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  margin-bottom:6px;
+}
+
+.stat-box strong,
+.inventory-kv strong,
+.inventory-metric strong,
+.inventory-gpu-card strong{
+  display:block;
+  font-size:14px;
+}
+
+.inventory-metric strong.metric-value{
+  font-size:22px;
+  letter-spacing:-.03em;
+}
+
+.settings-grid{ gap:12px; }
+
+.field input,
+.field select,
+.inventory-machine-card textarea,
+.inventory-deep-notes textarea,
+.inventory-deep-tags input{
+  transition:.2s ease;
+}
+
+.field input:focus,
+.field select:focus,
+.inventory-machine-card textarea:focus,
+.inventory-deep-notes textarea:focus,
+.inventory-deep-tags input:focus{
+  outline:none;
+  border-color:#00cc66;
+  box-shadow:0 0 0 2px rgba(0,204,102,.15);
+}
+
+.inventory-machine-card textarea,
+.inventory-deep-notes textarea{
+  min-height:96px;
+  resize:vertical;
+  background:#081220;
+  border:1px solid rgba(255,255,255,.06);
+  color:var(--text);
+  border-radius:12px;
+  padding:12px 14px;
+  font-size:15px;
+  font-family:Inter, Arial, Helvetica, sans-serif;
+}
+
+.inventory-deep-notes textarea{ min-height:140px; }
+
+.inventory-deep-tags input{
+  width:100%;
+  min-height:46px;
+  background:#081220;
+  border:1px solid rgba(255,255,255,.06);
+  color:var(--text);
+  border-radius:12px;
+  padding:12px 14px;
+  font-size:15px;
+  font-family:Inter, Arial, Helvetica, sans-serif;
+}
+
+.form-actions{
+  display:flex;
+  justify-content:flex-end;
+}
+
+.button-primary,
+.inventory-modal-close,
+.button-secondary{
+  transition:all .2s ease;
+}
+
+.button-primary:hover{
+  transform:translateY(-1px);
+  box-shadow:0 6px 18px rgba(0,204,102,.25);
+}
+
+.summary-card{
+  transition:.2s ease;
+}
+
+.summary-card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(0,0,0,.35);
+}
+
+.inventory-bulk-bar{
+  position:sticky;
+  bottom:14px;
+  z-index:60;
+  margin-top:20px;
+  opacity:0;
+  transform:translateY(12px);
+  pointer-events:none;
+  transition:.22s ease;
+}
+
+.inventory-bulk-bar.is-visible{
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:auto;
+}
+
+.inventory-bulk-shell{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+  padding:16px 18px;
+  border:1px solid rgba(0,204,102,.18);
+  border-radius:20px;
+  background:rgba(7,18,31,.94);
+  backdrop-filter:blur(12px);
+  box-shadow:0 18px 38px rgba(0,0,0,.34);
+}
+
+.inventory-bulk-summary{
+  display:grid;
+  gap:4px;
+}
+
+.inventory-bulk-controls{
+  display:grid;
+  grid-template-columns:minmax(180px, 220px) minmax(280px, 460px);
+  gap:12px;
+  align-items:end;
+  flex:1;
+}
+
+.inventory-bulk-actions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+.inventory-bulk-hidden{
+  display:none;
+}
+
+.inventory-toast-stack{
+  position:fixed;
+  right:18px;
+  bottom:18px;
+  z-index:130;
+  display:grid;
+  gap:10px;
+}
+
+.inventory-toast{
+  min-width:240px;
+  max-width:340px;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(7,18,31,.96);
+  box-shadow:0 12px 30px rgba(0,0,0,.32);
+  transition:.18s ease;
+}
+
+.inventory-toast.success{
+  border-color:rgba(0,204,102,.24);
+}
+
+.inventory-toast.error{
+  border-color:rgba(248,113,113,.24);
+}
+
+.inventory-modal{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:opacity .22s ease, visibility .22s ease;
+}
+
+.inventory-modal[hidden]{
+  display:none !important;
+}
+
+.inventory-modal.is-open{
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+}
+
+.inventory-modal-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(2,9,18,.76);
+  backdrop-filter:blur(8px);
+}
+
+.inventory-modal-dialog{
+  position:relative;
+  width:min(1180px, calc(100vw - 28px));
+  max-height:calc(100vh - 40px);
+  margin:20px auto;
+  transform:translateY(20px) scale(.985);
+  transition:transform .24s ease;
+}
+
+.inventory-modal.is-open .inventory-modal-dialog{
+  transform:translateY(0) scale(1);
+}
+
+.inventory-modal-shell{
+  max-height:calc(100vh - 40px);
+  overflow:hidden;
+  border:1px solid rgba(0,204,102,.16);
+  border-radius:24px;
+  background:linear-gradient(180deg, rgba(16,27,45,.98) 0%, rgba(9,24,39,.98) 100%);
+  box-shadow:0 30px 80px rgba(0,0,0,.42), 0 0 0 1px rgba(0,204,102,.08);
+}
+
+.inventory-modal-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+  padding:22px 22px 16px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.inventory-modal-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.inventory-modal-close{
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.03);
+  color:var(--text);
+  font-size:26px;
+  line-height:1;
+  cursor:pointer;
+}
+
+.inventory-modal-close:hover{
+  border-color:rgba(0,204,102,.38);
+  box-shadow:0 0 0 1px rgba(0,204,102,.15), 0 0 18px rgba(0,204,102,.10);
+}
+
+.inventory-modal-body{
+  padding:20px 22px 22px;
+  max-height:calc(100vh - 130px);
+  overflow:auto;
+}
+
+.inventory-modal-grid{
+  display:grid;
+  grid-template-columns:1.2fr .8fr;
+  gap:18px;
+}
+
+.inventory-modal-main,
+.inventory-modal-side,
+.inventory-list-stack{
+  display:grid;
+  gap:18px;
+}
+
+.inventory-section-card{
+  border:1px solid var(--border);
+  border-radius:18px;
+  background:rgba(255,255,255,.02);
+  padding:16px;
+}
+
+.inventory-section-card h4{
+  margin:0 0 4px;
+}
+
+.inventory-section-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:14px;
+}
+
+.inventory-list-item-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:6px;
+}
+
+.inventory-list-item-title{
+  font-weight:700;
+}
+
+.inventory-list-item-meta,
+.inventory-notes-status{
+  margin-top:6px;
+  color:var(--muted);
+  font-size:13px;
+}
+
+.inventory-empty-mini{
+  padding:16px;
+  border:1px dashed rgba(255,255,255,.1);
+  border-radius:16px;
+  color:var(--muted);
+  text-align:center;
+}
+
+.inventory-notes-actions{
+  margin-top:12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.inventory-modal-loading,
+.inventory-modal-error{
+  min-height:280px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  text-align:left;
+}
+
+.inventory-spinner{
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  border:3px solid rgba(255,255,255,.12);
+  border-top-color:var(--accent);
+  animation:spin 1s linear infinite;
+}
+
+.inventory-meter{
+  margin-top:10px;
+  height:8px;
+  border-radius:999px;
+  background:rgba(255,255,255,.06);
+  overflow:hidden;
+}
+
+.inventory-meter-fill{
+  height:100%;
+  border-radius:999px;
+  background:linear-gradient(90deg, rgba(0,204,102,.68) 0%, rgba(0,230,118,.96) 100%);
+  box-shadow:0 0 18px rgba(0,204,102,.2);
+}
+
+.inventory-meter-fill.warning{
+  background:linear-gradient(90deg, rgba(251,191,36,.6) 0%, rgba(251,191,36,.95) 100%);
+  box-shadow:0 0 16px rgba(251,191,36,.16);
+}
+
+.inventory-meter-fill.danger{
+  background:linear-gradient(90deg, rgba(251,113,133,.6) 0%, rgba(251,113,133,.95) 100%);
+  box-shadow:0 0 16px rgba(251,113,133,.16);
+}
+
+@keyframes spin{ to{transform:rotate(360deg)} }
+
+@media (max-width: 1280px){
+  .inventory-filter-grid-extended{
+    grid-template-columns:repeat(4, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 1080px){
+  .inventory-modal-grid{ grid-template-columns:1fr; }
+  .inventory-bulk-controls{ grid-template-columns:1fr; }
+}
+
+@media (max-width: 920px){
+  .inventory-filter-grid-extended{ grid-template-columns:1fr 1fr; }
+  .inventory-title-row,
+  .inventory-header,
+  .inventory-group-header,
+  .inventory-modal-header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+  .inventory-top-actions,
+  .inventory-header-badges,
+  .inventory-modal-actions{ justify-content:flex-start; }
+}
+
+@media (max-width: 720px){
+  .inventory-kv-grid,
+  .inventory-metric-grid,
+  .inventory-gpu-grid,
+  .inventory-filter-grid-extended{ grid-template-columns:1fr; }
+
+  .inventory-modal-dialog{
+    width:min(100vw - 12px, 1180px);
+    margin:6px auto;
+  }
+
+  .inventory-modal-shell{ border-radius:18px; }
+  .inventory-modal-header,
+  .inventory-modal-body{ padding:16px; }
+
+  .inventory-bulk-shell{
+    padding:14px;
+  }
+
+  .inventory-bulk-actions{
+    width:100%;
+    justify-content:stretch;
+  }
+
+  .inventory-bulk-actions > *{
+    flex:1;
+  }
+}
+</style>
+
+<script>
+(() => {
+  const privacyMode = {{ 'true' if privacy_mode else 'false' }};
+  const modal = document.getElementById("machineDeepViewModal");
+  const modalBody = document.getElementById("machineDeepViewBody");
+  const modalTitle = document.getElementById("machineDeepViewTitle");
+  const modalSubtext = document.getElementById("machineDeepViewSubtext");
+  const modalPageLink = document.getElementById("machineDeepViewPageLink");
+  const openButtons = document.querySelectorAll(".inventory-open-button");
+  const closeButtons = modal ? modal.querySelectorAll("[data-close-modal]") : [];
+  const body = document.body;
+  const selectionBoxes = Array.from(document.querySelectorAll(".inventory-select-checkbox"));
+  const selectAllVisibleButton = document.getElementById("inventorySelectAllVisible");
+  const selectFlaggedOnlyButton = document.getElementById("inventorySelectFlaggedOnly");
+  const selectOfflineButton = document.getElementById("inventorySelectOffline");
+  const selectStaleButton = document.getElementById("inventorySelectStale");
+  const clearSelectionButton = document.getElementById("inventoryClearSelection");
+  const selectionSummary = document.getElementById("inventorySelectionSummary");
+  const bulkBar = document.getElementById("inventoryBulkBar");
+  const bulkCount = document.getElementById("inventoryBulkCount");
+  const bulkAction = document.getElementById("inventoryBulkAction");
+  const bulkValueWrap = document.getElementById("inventoryBulkValueWrap");
+  const bulkValue = document.getElementById("inventoryBulkValue");
+  const bulkApply = document.getElementById("inventoryBulkApply");
+  const bulkCancel = document.getElementById("inventoryBulkCancel");
+  const toastStack = document.getElementById("inventoryToastStack");
+
+  let activeMachineId = null;
+  let closeTimer = null;
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function maskIp(value) {
+    const text = String(value ?? "").trim();
+    if (!text) return text;
+    const parts = text.split(".");
+    if (parts.length === 4 && parts.every(p => /^\d+$/.test(p))) {
+      return `***.***.*.${parts[3]}`;
+    }
+    if (text.includes(":")) {
+      const pieces = text.split(":");
+      if (pieces.length >= 3) {
+        return `${"****:".repeat(Math.max(1, pieces.length - 1))}${pieces[pieces.length - 1]}`;
+      }
+    }
+    return "***";
+  }
+
+  function maskHost(value) {
+    const text = String(value ?? "").trim();
+    if (!text) return text;
+    if (text.length <= 4) return "HOST-****";
+    return `${text.slice(0, 3).toUpperCase()}-******`;
+  }
+
+  function maskUser(value) {
+    const text = String(value ?? "").trim();
+    if (!text) return text;
+    return "User-****";
+  }
+
+  function maybeMaskIp(value) {
+    return privacyMode ? maskIp(value) : (value || "");
+  }
+
+  function maybeMaskHost(value) {
+    return privacyMode ? maskHost(value) : (value || "");
+  }
+
+  function maybeMaskUser(value) {
+    return privacyMode ? maskUser(value) : (value || "");
+  }
+
+  function maskFreeformText(value) {
+    let text = String(value ?? "");
+    if (!privacyMode || !text) return text;
+
+    text = text.replace(/\b(\d{1,3}\.){3}\d{1,3}\b/g, (match) => maskIp(match));
+    text = text.replace(/\b([A-Za-z0-9]{3,}[-_][A-Za-z0-9._-]{2,})\b/g, (match) => maskHost(match));
+    text = text.replace(/\b[A-Za-z0-9._-]+\\[A-Za-z0-9._-]+\b/g, "User-****");
+    text = text.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "User-****");
+
+    return text;
+  }
+
+  function maybeMaskFreeformText(value) {
+    return privacyMode ? maskFreeformText(value) : (value || "");
+  }
+
+  function meterClass(percent) {
+    const value = Number(percent || 0);
+    if (value >= 90) return "danger";
+    if (value >= 75) return "warning";
+    return "";
+  }
+
+  function metricCard(label, value, percent = null, detail = "") {
+    const numeric = percent === null ? 0 : Math.max(0, Math.min(100, Number(percent || 0)));
+    return `
+      <div class="inventory-metric">
+        <span>${escapeHtml(label)}</span>
+        <strong class="metric-value">${escapeHtml(value)}</strong>
+        ${detail ? `<div class="muted">${escapeHtml(detail)}</div>` : ""}
+        ${percent !== null ? `
+          <div class="inventory-meter">
+            <div class="inventory-meter-fill ${meterClass(percent)}" style="width:${numeric}%"></div>
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  function kvCard(label, value) {
+    return `
+      <div class="inventory-kv">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+      </div>
+    `;
+  }
+
+  function renderFlagPills(flags) {
+    if (!flags || !flags.length) {
+      return '<span class="status-pill pill-online">Healthy inventory profile</span>';
+    }
+
+    return flags.map(flag => {
+      const pillClass = flag.pill_class || "pill-muted";
+      return `<span class="status-pill ${escapeHtml(pillClass)}">${escapeHtml(flag.label)}</span>`;
+    }).join("");
+  }
+
+  function renderAlerts(alerts) {
+    if (!alerts || !alerts.length) {
+      return '<div class="inventory-empty-mini">No recent alerts for this machine.</div>';
+    }
+
+    return `<div class="inventory-list-stack">${alerts.map(alert => `
+      <div class="inventory-list-item">
+        <div class="inventory-list-item-top">
+          <div>
+            <div class="inventory-list-item-title">${escapeHtml(alert.alert_type)}</div>
+            <div class="inventory-list-item-meta">${escapeHtml(maybeMaskFreeformText(alert.message))}</div>
+          </div>
+          <div class="inventory-list-pills">
+            <span class="status-pill ${alert.severity === "critical" ? "pill-offline" : (alert.severity === "warning" ? "pill-warning" : "pill-muted")}">${escapeHtml(alert.severity_label)}</span>
+            <span class="status-pill ${alert.status_label === "Resolved" ? "pill-muted" : "pill-warning"}">${escapeHtml(alert.status_label)}</span>
+          </div>
+        </div>
+        <div class="inventory-list-item-meta">${escapeHtml(alert.recorded_at)}</div>
+      </div>
+    `).join("")}</div>`;
+  }
+
+  function renderCommands(commands) {
+    if (!commands || !commands.length) {
+      return '<div class="inventory-empty-mini">No recent commands for this machine.</div>';
+    }
+
+    return `<div class="inventory-list-stack">${commands.map(command => `
+      <div class="inventory-list-item">
+        <div class="inventory-list-item-top">
+          <div>
+            <div class="inventory-list-item-title">${escapeHtml(command.action_type)}</div>
+            <div class="inventory-list-item-meta">
+              Requested by ${escapeHtml(privacyMode ? "User-****" : (command.requested_by || "system"))}
+              • ${escapeHtml(command.source)}
+            </div>
+          </div>
+          <span class="status-pill ${escapeHtml(command.status_class)}">${escapeHtml(command.status)}</span>
+        </div>
+        <div class="inventory-list-item-meta">${escapeHtml(command.created_at)}</div>
+        ${command.result_text ? `<div class="inventory-list-item-meta">${escapeHtml(maybeMaskFreeformText(command.result_text))}</div>` : ""}
+      </div>
+    `).join("")}</div>`;
+  }
+
+  function renderSoftware(software) {
+    if (!software || !software.length) {
+      return '<div class="inventory-empty-mini">Installed software has not been captured yet.</div>';
+    }
+
+    return `<div class="inventory-software-list">${software.map(item => `
+      <span class="status-pill pill-muted">${escapeHtml(item.name)}${item.version ? ` ${escapeHtml(item.version)}` : ""}</span>
+    `).join("")}</div>`;
+  }
+
+  function renderGpu(gpu) {
+    if (!gpu || !gpu.items || !gpu.items.length) {
+      return '<div class="inventory-empty-mini">No GPU telemetry reported for this machine.</div>';
+    }
+
+    return `<div class="inventory-gpu-grid">${gpu.items.map(item => {
+      const usedGb = Number(item.memory_used_gb || 0);
+      const totalGb = Number(item.memory_total_gb || 0);
+      const vramPercent = totalGb > 0 ? Math.min(100, (usedGb / totalGb) * 100) : null;
+      const vramDetail = totalGb > 0 ? `${usedGb.toFixed(1)} / ${totalGb.toFixed(1)} GB VRAM` : "VRAM data unavailable";
+      return `
+        <div class="inventory-gpu-card">
+          <span>GPU Telemetry</span>
+          <strong>${escapeHtml(item.name)}</strong>
+          <div class="inventory-list-pills" style="margin-top:10px;">
+            ${item.load !== null ? `<span class="status-pill pill-muted">Load ${escapeHtml(item.load)}%</span>` : ""}
+            ${item.temperature !== null ? `<span class="status-pill pill-muted">Temp ${escapeHtml(item.temperature)}°C</span>` : ""}
+          </div>
+          ${vramPercent !== null ? `
+            <div class="inventory-meter" style="margin-top:12px;">
+              <div class="inventory-meter-fill ${meterClass(vramPercent)}" style="width:${vramPercent}%"></div>
+            </div>
+            <div class="inventory-list-item-meta">${escapeHtml(vramDetail)}</div>
+          ` : '<div class="inventory-list-item-meta" style="margin-top:12px;">VRAM data unavailable.</div>'}
+        </div>
+      `;
+    }).join("")}</div>`;
+  }
+
+  function setLoadingState() {
+    if (!modalBody || !modalTitle || !modalSubtext) return;
+    modalTitle.textContent = "Loading machine…";
+    modalSubtext.textContent = "Preparing machine summary.";
+    modalBody.innerHTML = `
+      <div class="inventory-modal-loading">
+        <div class="inventory-spinner"></div>
+        <div>
+          <strong>Loading machine intelligence</strong>
+          <div class="muted">Fetching live telemetry, alerts, commands, and notes.</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function setErrorState(message) {
+    if (!modalBody) return;
+    modalBody.innerHTML = `
+      <div class="inventory-modal-error">
+        <div>
+          <strong>Unable to load machine details</strong>
+          <div class="muted">${escapeHtml(message || "An unexpected error occurred.")}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function showToast(message, type = "success") {
+    if (!toastStack) return;
+    const toast = document.createElement("div");
+    toast.className = `inventory-toast ${type}`;
+    toast.textContent = message;
+    toastStack.appendChild(toast);
+    window.setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(-6px)";
+      window.setTimeout(() => toast.remove(), 180);
+    }, 2600);
+  }
+
+  function getSelectedMachineIds() {
+    return selectionBoxes.filter(box => box.checked).map(box => box.getAttribute("data-machine-select"));
+  }
+
+  function syncBulkValueState() {
+    const action = bulkAction?.value || "set_role";
+    const needsValue = !["clear_notes", "clear_tags"].includes(action);
+    bulkValueWrap?.classList.toggle("inventory-bulk-hidden", !needsValue);
+    if (bulkValue) {
+      bulkValue.placeholder = action === "set_role"
+        ? "Example: workstation, server, kiosk"
+        : action === "set_location"
+          ? "Example: Front office, rack A, render lab"
+          : action === "append_notes"
+            ? "Text to append to the current notes on each selected machine..."
+            : action === "add_tags"
+              ? "Comma-separated tags to add, e.g. production, gpu"
+              : action === "remove_tags"
+                ? "Comma-separated tags to remove"
+                : action === "replace_tags"
+                  ? "Comma-separated tags that should replace the current set"
+                  : "Text that will replace the current notes on each selected machine...";
+    }
+  }
+
+  function updateSelectionUi() {
+    const selected = getSelectedMachineIds();
+    const count = selected.length;
+    if (selectionSummary) selectionSummary.textContent = `${count} selected`;
+    if (bulkCount) bulkCount.textContent = `${count} selected`;
+    bulkBar?.classList.toggle("is-visible", count > 0);
+    bulkBar?.setAttribute("aria-hidden", count > 0 ? "false" : "true");
+
+    selectionBoxes.forEach(box => {
+      const card = box.closest(".inventory-machine-card");
+      card?.classList.toggle("is-selected", box.checked);
+    });
+  }
+
+  function clearSelection() {
+    selectionBoxes.forEach(box => { box.checked = false; });
+    updateSelectionUi();
+  }
+
+  function selectVisibleByPredicate(predicate) {
+    selectionBoxes.forEach(box => {
+      const card = box.closest(".inventory-machine-card");
+      if (!card) return;
+      const visible = window.getComputedStyle(card).display !== "none";
+      if (!visible) return;
+      box.checked = predicate(card);
+    });
+    updateSelectionUi();
+  }
+
+  function selectAllVisible() {
+    selectVisibleByPredicate(() => true);
+  }
+
+  function selectFlaggedOnly() {
+    selectVisibleByPredicate(card => card.dataset.needsAttention === "1");
+  }
+
+  function selectOfflineOnly() {
+    selectVisibleByPredicate(card => card.dataset.online === "0");
+  }
+
+  function selectStaleOnly() {
+    selectVisibleByPredicate(card => card.dataset.stale === "1");
+  }
+
+  function renderCardFlags(flags = []) {
+    return flags.map(flag => `<span class="status-pill ${flag.pill_class || "pill-muted"}">${escapeHtml(flag.label || "")}</span>`).join("");
+  }
+
+  function renderTagPills(tags = []) {
+    if (!tags.length) {
+      return '<span class="status-pill pill-muted inventory-tag-pill inventory-tag-empty">No tags</span>';
+    }
+    return tags.map(tag => {
+      const name = typeof tag === "string" ? tag : (tag?.name || "");
+      return `<span class="status-pill pill-muted inventory-tag-pill">#${escapeHtml(name)}</span>`;
+    }).join("");
+  }
+
+  function tagNamesToInput(tags = []) {
+    return tags.map(tag => typeof tag === "string" ? tag : (tag?.name || "")).filter(Boolean).join(", ");
+  }
+
+  function applyMachineCardUpdate(machine) {
+    const card = document.querySelector(`[data-machine-card="${machine.id}"]`);
+    if (!card) return;
+
+    card.dataset.online = machine.is_online ? "1" : "0";
+    card.dataset.needsAttention = machine.inventory_flags && machine.inventory_flags.length ? "1" : "0";
+    card.dataset.missingRole = machine.missing_role ? "1" : "0";
+    card.dataset.missingLocation = machine.missing_location ? "1" : "0";
+    card.dataset.missingNotes = machine.missing_notes ? "1" : "0";
+    card.dataset.stale = machine.is_stale ? "1" : "0";
+
+    const roleInput = card.querySelector("[data-role-input]");
+    const locationInput = card.querySelector("[data-location-input]");
+    const notesInput = card.querySelector("[data-notes-input]");
+    const tagsInput = card.querySelector("[data-tags-input]");
+    const locationValue = card.querySelector("[data-location-value]");
+    const lastSeenValue = card.querySelector("[data-last-seen]");
+    const badges = card.querySelector("[data-card-badges]");
+    const tagRow = card.querySelector(`[data-tag-row="${machine.id}"]`) || card.querySelector(".inventory-tag-row");
+    let flagRow = card.querySelector(`[data-flag-row="${machine.id}"]`) || card.querySelector(".inventory-flag-row");
+
+    const title = card.querySelector(".inventory-title-left h3");
+    const muted = card.querySelector(".inventory-title-left .muted");
+    const hostnameStrong = Array.from(card.querySelectorAll(".stat-box .stat-label"))
+      .find(node => node.textContent.trim() === "Hostname")
+      ?.parentElement?.querySelector("strong");
+    const currentUserStrong = Array.from(card.querySelectorAll(".stat-box .stat-label"))
+      .find(node => node.textContent.trim() === "Current User")
+      ?.parentElement?.querySelector("strong");
+
+    if (!flagRow) {
+      flagRow = document.createElement("div");
+      flagRow.className = "inventory-flag-row";
+      flagRow.setAttribute("data-flag-row", machine.id);
+      const titleRow = card.querySelector(".inventory-title-row");
+      if (titleRow && titleRow.nextSibling) {
+        titleRow.parentNode.insertBefore(flagRow, titleRow.nextSibling);
+      } else if (titleRow) {
+        titleRow.parentNode.appendChild(flagRow);
+      }
+    }
+
+    if (roleInput) roleInput.value = machine.machine_role || "";
+    if (locationInput) locationInput.value = machine.location || "";
+    if (notesInput) notesInput.value = machine.notes || "";
+    if (tagsInput) tagsInput.value = tagNamesToInput(machine.tags || []);
+    if (locationValue) locationValue.textContent = machine.location || "Unassigned";
+    if (lastSeenValue) lastSeenValue.textContent = machine.last_seen_label || lastSeenValue.textContent;
+    if (title) title.textContent = machine.display_name || maybeMaskHost(machine.hostname) || "Machine";
+    if (muted) muted.textContent = `${maybeMaskHost(machine.hostname)} • ${maybeMaskIp(machine.ip_address || "No IP")} • ${machine.os_name || "Unknown OS"}`;
+    if (hostnameStrong) hostnameStrong.textContent = maybeMaskHost(machine.hostname);
+    if (currentUserStrong) currentUserStrong.textContent = maybeMaskUser(machine.current_user || "N/A");
+
+    if (badges) {
+      badges.innerHTML = `
+        ${machine.machine_role ? `<span class="status-pill pill-muted" data-role-pill>${escapeHtml(machine.machine_role)}</span>` : ""}
+        <span class="status-pill ${machine.is_online ? "pill-online" : "pill-offline"}" data-status-pill>${machine.is_online ? "Online" : "Offline"}</span>
+      `;
+    }
+
+    if (flagRow) {
+      const html = renderCardFlags(machine.inventory_flags || []);
+      flagRow.innerHTML = html;
+      flagRow.style.display = html ? "flex" : "none";
+    }
+
+    if (tagRow) {
+      tagRow.innerHTML = renderTagPills(machine.tags || []);
+    }
+  }
+
+  async function submitBulkAction() {
+    const machineIds = getSelectedMachineIds();
+    const action = bulkAction?.value || "set_role";
+    const value = (bulkValue?.value || "").trim();
+
+    if (!machineIds.length) {
+      showToast("Select at least one machine first.", "error");
+      return;
+    }
+
+    if (!["clear_notes", "clear_tags"].includes(action) && !value) {
+      showToast("Enter a value before applying this bulk action.", "error");
+      return;
+    }
+
+    const originalText = bulkApply?.textContent || "Apply to Selected";
+    if (bulkApply) {
+      bulkApply.disabled = true;
+      bulkApply.textContent = "Applying…";
+    }
+
+    try {
+      const response = await fetch("/inventory/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, value, machine_ids: machineIds }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message || `Request failed with status ${response.status}.`);
+      }
+
+      (payload.machines || payload.updates || []).forEach(applyMachineCardUpdate);
+      if (bulkValue && action !== "append_notes") bulkValue.value = "";
+      showToast(payload.message || "Bulk action applied.", "success");
+      clearSelection();
+    } catch (error) {
+      showToast(error.message || "Bulk action failed.", "error");
+    } finally {
+      if (bulkApply) {
+        bulkApply.disabled = false;
+        bulkApply.textContent = originalText;
+      }
+    }
+  }
+
+  function openModal() {
+    if (!modal) return;
+    if (closeTimer) {
+      window.clearTimeout(closeTimer);
+      closeTimer = null;
+    }
+    modal.hidden = false;
+    requestAnimationFrame(() => {
+      modal.classList.add("is-open");
+      modal.setAttribute("aria-hidden", "false");
+      body.style.overflow = "hidden";
+    });
+  }
+
+  function closeModal() {
+    if (!modal) return;
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    body.style.overflow = "";
+    activeMachineId = null;
+
+    closeTimer = window.setTimeout(() => {
+      modal.hidden = true;
+    }, 220);
+  }
+
+  function updateCardNotesState(machineId, hasNotes) {
+    const card = document.querySelector(`[data-machine-card="${machineId}"]`);
+    if (!card) return;
+    const notesField = card.querySelector("[data-notes-input]");
+    const currentNotes = document.getElementById("inventoryDeepNotesField")?.value || "";
+    if (notesField) {
+      notesField.value = currentNotes || notesField.value;
+    }
+
+    let flagRow = card.querySelector(`[data-flag-row="${machineId}"]`) || card.querySelector(".inventory-flag-row");
+    if (!flagRow && !hasNotes) {
+      flagRow = document.createElement("div");
+      flagRow.className = "inventory-flag-row";
+      flagRow.setAttribute("data-flag-row", machineId);
+      const titleRow = card.querySelector(".inventory-title-row");
+      if (titleRow && titleRow.nextSibling) {
+        titleRow.parentNode.insertBefore(flagRow, titleRow.nextSibling);
+      } else if (titleRow) {
+        titleRow.parentNode.appendChild(flagRow);
+      }
+    }
+
+    if (flagRow) {
+      const noNotesPill = Array.from(flagRow.querySelectorAll(".status-pill")).find(node => node.textContent.trim() === "No notes");
+      if (noNotesPill) noNotesPill.remove();
+
+      if (!hasNotes) {
+        if (!noNotesPill) {
+          flagRow.insertAdjacentHTML("beforeend", '<span class="status-pill pill-muted">No notes</span>');
+        }
+      }
+
+      if (!flagRow.querySelector(".status-pill")) {
+        flagRow.style.display = "none";
+      } else {
+        flagRow.style.display = "flex";
+      }
+    }
+  }
+
+  async function saveNotes(machineId) {
+    const notesField = document.getElementById("inventoryDeepNotesField");
+    const statusNode = document.getElementById("inventoryDeepNotesStatus");
+    if (!notesField || !statusNode) return;
+
+    statusNode.textContent = "Saving notes…";
+
+    try {
+      const response = await fetch(`/inventory/machine/${machineId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: notesField.value || "" }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message || "Unable to save notes.");
+      }
+
+      if (payload.machine) {
+        applyMachineCardUpdate(payload.machine);
+      } else {
+        updateCardNotesState(machineId, Boolean((notesField.value || "").trim()));
+      }
+
+      statusNode.textContent = "Notes saved.";
+    } catch (error) {
+      statusNode.textContent = error.message || "Unable to save notes.";
+    }
+  }
+
+  async function saveTags(machineId) {
+    const tagsField = document.getElementById("inventoryDeepTagsField");
+    const statusNode = document.getElementById("inventoryDeepTagsStatus");
+    if (!tagsField || !statusNode) return;
+
+    statusNode.textContent = "Saving tags…";
+
+    try {
+      const response = await fetch(`/inventory/machine/${machineId}/tags`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: tagsField.value || "" }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message || "Unable to save tags.");
+      }
+
+      if (payload.machine) {
+        applyMachineCardUpdate(payload.machine);
+        const tagBadgeWrap = document.getElementById("inventoryDeepTagPills");
+        if (tagBadgeWrap) tagBadgeWrap.innerHTML = renderTagPills(payload.machine.tags || []);
+      }
+      statusNode.textContent = "Tags saved.";
+    } catch (error) {
+      statusNode.textContent = error.message || "Unable to save tags.";
+    }
+  }
+
+  function bindModalEvents(machineId) {
+    const saveButton = document.getElementById("inventoryDeepNotesSave");
+    const saveTagsButton = document.getElementById("inventoryDeepTagsSave");
+    if (saveButton) {
+      saveButton.addEventListener("click", () => saveNotes(machineId));
+    }
+    if (saveTagsButton) {
+      saveTagsButton.addEventListener("click", () => saveTags(machineId));
+    }
+  }
+
+  function renderMachine(payload) {
+    const machine = payload.machine || {};
+    const metrics = payload.metrics || {};
+    const gpu = payload.gpu || { items: [] };
+
+    const titleLabel = machine.display_name || maybeMaskHost(machine.hostname) || "Machine";
+    const subHost = maybeMaskHost(machine.hostname || "Unknown hostname");
+    const subIp = maybeMaskIp(machine.ip_address || "No IP reported");
+
+    if (modalTitle) modalTitle.textContent = titleLabel;
+    if (modalSubtext) {
+      modalSubtext.textContent = `${subHost} • ${machine.os_name || "Unknown OS"} • ${subIp}`;
+    }
+    if (modalPageLink) modalPageLink.href = `/machine/${machine.id}`;
+
+    if (!modalBody) return;
+    modalBody.innerHTML = `
+      <div class="inventory-modal-grid">
+        <div class="inventory-modal-main">
+          <section class="inventory-section-card">
+            <div class="inventory-section-head">
+              <div>
+                <h4>System Info</h4>
+                <div class="muted">Core identity, ownership, and latest heartbeat state.</div>
+              </div>
+              <div class="inventory-meta-pills">
+                <span class="status-pill ${machine.is_online ? "pill-online" : "pill-offline"}">${machine.is_online ? "Online" : "Offline"}</span>
+                <span class="status-pill pill-muted">${escapeHtml(machine.machine_role || "Unassigned")}</span>
+                <span class="status-pill pill-muted">${escapeHtml(machine.location || "Unassigned")}</span>
+              </div>
+            </div>
+            <div class="inventory-flag-row" style="margin-bottom:14px;">
+              ${renderFlagPills(machine.flags || machine.inventory_flags || [])}
+            </div>
+            <div class="inventory-kv-grid">
+              ${kvCard("Hostname", maybeMaskHost(machine.hostname || "Unknown hostname"))}
+              ${kvCard("Operating System", machine.os_name || "Unknown OS")}
+              ${kvCard("IP Address", maybeMaskIp(machine.ip_address || "No IP reported"))}
+              ${kvCard("Current User", maybeMaskUser(machine.current_user || "N/A"))}
+              ${kvCard("Last Seen", machine.last_seen || "Never")}
+              ${kvCard("Uptime", machine.uptime || "0m")}
+            </div>
+          </section>
+
+          <section class="inventory-section-card">
+            <div class="inventory-section-head">
+              <div>
+                <h4>Live Metrics</h4>
+                <div class="muted">Most recent telemetry from the latest machine snapshot.</div>
+              </div>
+              <div class="inventory-meta-pills">
+                ${metrics.cpu_temp !== null && metrics.cpu_temp !== undefined ? `<span class="status-pill pill-muted">CPU Temp ${escapeHtml(metrics.cpu_temp)}°C</span>` : ""}
+                <span class="status-pill pill-muted">Up ${escapeHtml(metrics.net_up || "0 B/s")}</span>
+                <span class="status-pill pill-muted">Down ${escapeHtml(metrics.net_down || "0 B/s")}</span>
+              </div>
+            </div>
+            <div class="inventory-metric-grid">
+              ${metricCard("CPU", `${metrics.cpu_percent ?? 0}%`, metrics.cpu_percent, metrics.cpu_temp !== null && metrics.cpu_temp !== undefined ? `${metrics.cpu_temp}°C` : "Temperature unavailable")}
+              ${metricCard("RAM", `${metrics.ram_percent ?? 0}%`, metrics.ram_percent, `${metrics.ram_used_gb ?? 0} / ${metrics.ram_total_gb ?? 0} GB`)}
+              ${metricCard("Disk", `${metrics.disk_percent ?? 0}%`, metrics.disk_percent, `${metrics.disk_used_gb ?? 0} / ${metrics.disk_total_gb ?? 0} GB`)}
+              ${metricCard("Network", `${metrics.net_down || "0 B/s"}`, null, `Up ${metrics.net_up || "0 B/s"}`)}
+            </div>
+          </section>
+
+          <section class="inventory-section-card">
+            <div class="inventory-section-head">
+              <div>
+                <h4>GPU Info</h4>
+                <div class="muted">GPU telemetry is shown when the latest check-in includes it.</div>
+              </div>
+              <div class="inventory-meta-pills">
+                <span class="status-pill pill-muted">${gpu.count || 0} GPU${gpu.count === 1 ? "" : "s"}</span>
+              </div>
+            </div>
+            ${renderGpu(gpu)}
+          </section>
+        </div>
+
+        <div class="inventory-modal-side">
+          <section class="inventory-section-card">
+            <div class="inventory-section-head">
+              <div>
+                <h4>Recent Alerts</h4>
+                <div class="muted">Last 5 alerts reported for this machine.</div>
+              </div>
+            </div>
+            ${renderAlerts(payload.alerts || [])}
+          </section>
+
+          <section class="inventory-section-card">
+            <div class="inventory-section-head">
+              <div>
+                <h4>Recent Commands</h4>
+                <div class="muted">Last 5 remote actions and their outcomes.</div>
+              </div>
+            </div>
+            ${renderCommands(payload.commands || [])}
+          </section>
+
+          <section class="inventory-section-card">
+            <div class="inventory-section-head">
+              <div>
+                <h4>Installed Software</h4>
+                <div class="muted">Latest software inventory snapshot when available.</div>
+              </div>
+            </div>
+            ${renderSoftware(payload.software || [])}
+          </section>
+
+          <section class="inventory-section-card inventory-deep-tags">
+            <div class="inventory-section-head">
+              <div>
+                <h4>Tags</h4>
+                <div class="muted">Operational labels for grouping, filtering, and future automation targeting.</div>
+              </div>
+            </div>
+            <div class="inventory-tag-row" id="inventoryDeepTagPills">${renderTagPills(machine.tags || [])}</div>
+            <input type="text" id="inventoryDeepTagsField" value="${escapeHtml((machine.tag_names || []).join(", "))}" placeholder="production, lab, gpu, critical">
+            <div class="inventory-notes-actions">
+              <button type="button" class="button-primary" id="inventoryDeepTagsSave">Save Tags</button>
+              <span class="inventory-notes-status" id="inventoryDeepTagsStatus">Ready</span>
+            </div>
+          </section>
+
+          <section class="inventory-section-card inventory-deep-notes">
+            <div class="inventory-section-head">
+              <div>
+                <h4>Notes</h4>
+                <div class="muted">Operator context for ownership, hardware, and maintenance details.</div>
+              </div>
+            </div>
+            <textarea id="inventoryDeepNotesField" placeholder="Owner, deployment notes, maintenance details, hardware context...">${escapeHtml(machine.notes || "")}</textarea>
+            <div class="inventory-notes-actions">
+              <button type="button" class="button-primary" id="inventoryDeepNotesSave">Save Notes</button>
+              <span class="inventory-notes-status" id="inventoryDeepNotesStatus">Ready</span>
+            </div>
+          </section>
+        </div>
+      </div>
+    `;
+
+    bindModalEvents(machine.id);
+  }
+
+  async function loadMachine(machineId) {
+    activeMachineId = machineId;
+    openModal();
+    setLoadingState();
+
+    try {
+      const response = await fetch(`/inventory/machine/${machineId}/detail`);
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}.`);
+      }
+
+      const payload = await response.json();
+      if (activeMachineId !== machineId) return;
+      renderMachine(payload);
+    } catch (error) {
+      if (activeMachineId !== machineId) return;
+      setErrorState(error.message || "Unable to load machine details.");
+    }
+  }
+
+  selectionBoxes.forEach(box => {
+    box.addEventListener("click", event => event.stopPropagation());
+    box.addEventListener("change", updateSelectionUi);
+  });
+
+  selectAllVisibleButton?.addEventListener("click", selectAllVisible);
+  selectFlaggedOnlyButton?.addEventListener("click", selectFlaggedOnly);
+  selectOfflineButton?.addEventListener("click", selectOfflineOnly);
+  selectStaleButton?.addEventListener("click", selectStaleOnly);
+  clearSelectionButton?.addEventListener("click", clearSelection);
+  bulkCancel?.addEventListener("click", clearSelection);
+  bulkAction?.addEventListener("change", syncBulkValueState);
+  bulkApply?.addEventListener("click", submitBulkAction);
+
+  syncBulkValueState();
+  updateSelectionUi();
+
+  openButtons.forEach(button => {
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const machineId = button.getAttribute("data-machine-id");
+      if (!machineId) return;
+      loadMachine(machineId);
+    });
+  });
+
+  closeButtons.forEach(button => {
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      closeModal();
+    });
+  });
+
+  modal?.querySelector(".inventory-modal-dialog")?.addEventListener("click", event => {
+    event.stopPropagation();
+  });
+
+  modal?.addEventListener("click", event => {
+    if (event.target?.hasAttribute?.("data-close-modal")) {
+      closeModal();
+    }
+  });
+
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && modal && modal.classList.contains("is-open")) {
+      closeModal();
+    }
+  });
+
+  window.addEventListener("pagehide", () => {
+    if (!modal) return;
+    modal.classList.remove("is-open");
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    body.style.overflow = "";
+  });
+})();
+</script>
+{% endblock %}

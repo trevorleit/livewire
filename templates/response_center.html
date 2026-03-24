@@ -1,0 +1,474 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="panel response-shell">
+  <div class="panel-header response-header">
+    <div>
+      <div class="eyebrow">Alert Response & Remediation</div>
+      <h2>Response Center</h2>
+      <p>Define remediation rules, reduce noisy service naming, and validate outbound notifications.</p>
+    </div>
+
+    <div class="response-header-badges">
+      <span class="status-pill pill-muted">{{ rules|length }} rule{{ '' if rules|length == 1 else 's' }}</span>
+      <span class="status-pill pill-info">{{ recent_runs|length }} recent run{{ '' if recent_runs|length == 1 else 's' }}</span>
+    </div>
+  </div>
+
+  <div class="response-top-grid">
+    <article class="response-card">
+      <div class="panel-header">
+        <h3>Create Rule</h3>
+        <p>Match an alert type and attach an automated action.</p>
+      </div>
+
+      <form method="post" class="compact-form">
+        <input type="hidden" name="form_type" value="create_rule">
+
+        <div class="rule-builder-grid">
+          <label class="field">
+            <span>Rule name</span>
+            <input name="name" placeholder="Restart Apache on service_down" required>
+            <small class="helper-text">Use a descriptive name operators can understand quickly.</small>
+          </label>
+
+          <label class="field">
+            <span>Alert type</span>
+            <input name="alert_type" placeholder="service_down" required>
+            <small class="helper-text">Examples: <span class="mono">service_down</span>, <span class="mono">cpu_high</span>, <span class="mono">disk_high</span>.</small>
+          </label>
+
+          <label class="field">
+            <span>Machine role</span>
+            <input name="machine_role" placeholder="web, db, workstation">
+            <small class="helper-text">Optional. Leave blank to apply across all roles.</small>
+          </label>
+
+          <label class="field">
+            <span>Action type</span>
+            <select name="action_type" id="response_action_type">
+              <option value="restart_service">restart_service</option>
+              <option value="stop_process">stop_process</option>
+              <option value="reboot_machine">reboot_machine</option>
+            </select>
+          </label>
+
+          <label class="field response-action-field" id="response_service_name_field">
+            <span>Service name</span>
+            <input name="service_name" placeholder="Apache or MySQL">
+          </label>
+
+          <label class="field response-action-field" id="response_pid_field" style="display:none;">
+            <span>PID</span>
+            <input name="pid" placeholder="1234">
+          </label>
+
+          <label class="field response-action-field" id="response_delay_field" style="display:none;">
+            <span>Delay (seconds)</span>
+            <input name="delay_seconds" placeholder="5" value="5">
+          </label>
+
+          <label class="field">
+            <span>Cooldown (minutes)</span>
+            <input name="cooldown_seconds" value="30">
+            <small class="helper-text">Prevents repeated automation during noisy alert storms.</small>
+          </label>
+
+          <label class="checkbox-field checkbox-panel">
+            <input type="checkbox" name="auto_approve">
+            <div>
+              <strong>Auto-approve created commands</strong>
+              <small class="helper-text">Lets the remediation engine generate commands without waiting for manual approval.</small>
+            </div>
+          </label>
+        </div>
+
+        <div class="helper-text response-form-note">
+          Action-specific fields will appear automatically based on the selected action type.
+        </div>
+
+        <div class="form-actions">
+          <button class="button-primary" type="submit">Create Rule</button>
+        </div>
+      </form>
+    </article>
+
+    <aside class="response-side-card">
+      <h3>Recommended Approach</h3>
+      <div class="response-side-list">
+        <div class="response-side-item">
+          <strong>Start small</strong>
+          <span>Use restart-service rules first before enabling more disruptive actions.</span>
+        </div>
+        <div class="response-side-item">
+          <strong>Use cooldowns</strong>
+          <span>Cooldown windows reduce command spam during repeated alert conditions.</span>
+        </div>
+        <div class="response-side-item">
+          <strong>Role targeting</strong>
+          <span>Scope rules by machine role whenever the response should not be universal.</span>
+        </div>
+        <div class="response-side-item">
+          <strong>Test safely</strong>
+          <span>Use test notifications and low-risk rules to validate end-to-end behavior.</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h3>Rules</h3>
+    <p>Current remediation rules with enable and disable control.</p>
+  </div>
+
+  {% if rules %}
+    <div class="rule-stack">
+      {% for r in rules %}
+        {% set enabled_value = (r.enabled if r.enabled is defined else r.enabled) %}
+        <div class="rule-card {{ 'rule-enabled' if enabled_value else 'rule-disabled' }}">
+          <div class="rule-card-top">
+            <div>
+              <div class="rule-title-row">
+                <h4>{{ r.name }}</h4>
+                {% if enabled_value %}
+                  <span class="status-pill pill-online">Enabled</span>
+                {% else %}
+                  <span class="status-pill pill-muted">Disabled</span>
+                {% endif %}
+                {% if r.auto_approve %}
+                  <span class="status-pill pill-info">Auto Approve</span>
+                {% endif %}
+              </div>
+
+              <div class="rule-meta-line">
+                <span class="mono">{{ r.alert_type }}</span>
+                {% if r.machine_role %}
+                  <span>· role {{ r.machine_role }}</span>
+                {% endif %}
+                <span>· cooldown {{ r.cooldown_seconds }} min</span>
+              </div>
+            </div>
+
+            <div class="rule-controls">
+              <form method="post">
+                <input type="hidden" name="form_type" value="toggle_rule">
+                <input type="hidden" name="related_rule_id" value="{{ r.id }}">
+                <input type="hidden" name="enabled" value="{{ 0 if enabled_value else 1 }}">
+                <button class="button-secondary small-button" type="submit">
+                  {{ 'Disable' if enabled_value else 'Enable' }}
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div class="rule-grid">
+            <div class="stat-box">
+              <span class="stat-label">Action</span>
+              <strong>{{ r.action_type }}</strong>
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">Alert Type</span>
+              <strong>{{ r.alert_type }}</strong>
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">Machine Role</span>
+              <strong>{{ r.machine_role or 'All Roles' }}</strong>
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">Cooldown</span>
+              <strong>{{ r.cooldown_seconds }} min</strong>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h3>No rules created yet.</h3>
+      <p>Create your first remediation rule to automate safe response workflows.</p>
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="split-header panel-header">
+    <div>
+      <h3>Recent Runs</h3>
+      <p>Latest remediation attempts and queued command output.</p>
+    </div>
+
+    <form method="post">
+      <input type="hidden" name="form_type" value="test_notification">
+      <button class="button-secondary" type="submit">Send Test Notification</button>
+    </form>
+  </div>
+
+  <div class="table-wrap response-runs-wrap">
+    <table class="response-runs-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Message</th>
+          <th>Recorded</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recent_runs %}
+          {% set run_status = (r.status or '')|lower %}
+          <tr>
+            <td class="status-cell">
+              {% if run_status in ['completed', 'success', 'queued'] %}
+                <span class="status-pill pill-online">{{ r.status }}</span>
+              {% elif run_status in ['running', 'in_progress'] %}
+                <span class="status-pill pill-info">{{ r.status }}</span>
+              {% elif run_status in ['failed', 'error'] %}
+                <span class="status-pill pill-offline">{{ r.status }}</span>
+              {% elif run_status in ['skipped', 'partial'] %}
+                <span class="status-pill pill-warning">{{ r.status }}</span>
+              {% else %}
+                <span class="status-pill pill-muted">{{ r.status or 'unknown' }}</span>
+              {% endif %}
+            </td>
+            <td>{{ r.message or r.action_taken or '—' }}</td>
+            <td>{{ r.created_at or '—' }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="3">No remediation runs yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<style>
+.response-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.response-header-badges{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.response-top-grid{
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) 300px;
+  gap:20px;
+}
+
+.response-card{
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(0,204,102,.04) 0%, rgba(255,255,255,.015) 100%);
+  padding:18px;
+  box-shadow:0 0 20px rgba(0,204,102,.08);
+}
+
+.response-side-card{
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(0,204,102,.03), rgba(255,255,255,.01));
+  padding:18px;
+  box-shadow:0 0 20px rgba(0,204,102,.05);
+  align-self:start;
+}
+
+.response-side-card h3{
+  margin:0 0 14px;
+}
+
+.response-side-list{
+  display:grid;
+  gap:12px;
+}
+
+.response-side-item{
+  display:grid;
+  gap:4px;
+  padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.response-side-item:last-child{
+  border-bottom:0;
+  padding-bottom:0;
+}
+
+.response-side-item strong{
+  font-size:14px;
+}
+
+.response-side-item span{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+
+.rule-builder-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+  gap:14px;
+}
+
+.response-form-note{
+  margin-top:10px;
+}
+
+.field input:focus,
+.field select:focus{
+  border-color:#00cc66;
+  box-shadow:0 0 0 2px rgba(0,204,102,.15);
+}
+
+.button-primary{
+  box-shadow:0 0 12px rgba(0,204,102,.25);
+  transition:all .2s ease;
+}
+
+.button-primary:hover{
+  transform:translateY(-1px);
+  box-shadow:0 0 18px rgba(0,204,102,.5);
+}
+
+.rule-stack{
+  display:grid;
+  gap:14px;
+}
+
+.rule-card{
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:16px;
+  background:linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,.01));
+  transition:all .18s ease;
+}
+
+.rule-card:hover{
+  border-color:rgba(0,204,102,.25);
+  box-shadow:0 0 14px rgba(0,204,102,.08);
+}
+
+.rule-enabled{
+  box-shadow:
+    0 0 0 1px rgba(0,204,102,.15),
+    0 0 16px rgba(0,204,102,.08);
+}
+
+.rule-disabled{
+  opacity:.92;
+}
+
+.rule-card-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:14px;
+}
+
+.rule-title-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:6px;
+}
+
+.rule-title-row h4{
+  margin:0;
+}
+
+.rule-meta-line{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+
+.rule-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+  gap:12px;
+}
+
+.checkbox-panel{
+  padding:14px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(255,255,255,.02);
+  min-height:100%;
+}
+
+.checkbox-panel strong{
+  display:block;
+  color:var(--text);
+  margin-bottom:4px;
+}
+
+.response-runs-wrap table tbody tr{
+  transition:all .15s ease;
+}
+
+.response-runs-wrap table tbody tr:hover{
+  background:rgba(0,204,102,.05);
+}
+
+@media (max-width: 1100px){
+  .response-top-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width: 860px){
+  .response-header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .response-header-badges{
+    justify-content:flex-start;
+  }
+
+  .rule-card-top{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+}
+</style>
+
+<script>
+(function () {
+  const actionType = document.getElementById("response_action_type");
+  const serviceField = document.getElementById("response_service_name_field");
+  const pidField = document.getElementById("response_pid_field");
+  const delayField = document.getElementById("response_delay_field");
+
+  function syncResponseActionFields() {
+    if (!actionType || !serviceField || !pidField || !delayField) return;
+
+    const value = actionType.value;
+
+    serviceField.style.display = value === "restart_service" ? "" : "none";
+    pidField.style.display = value === "stop_process" ? "" : "none";
+    delayField.style.display = value === "reboot_machine" ? "" : "none";
+  }
+
+  if (actionType) {
+    actionType.addEventListener("change", syncResponseActionFields);
+    syncResponseActionFields();
+  }
+})();
+</script>
+
+{% endblock %}

@@ -1,0 +1,1345 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% set completed_count = summary.completed or 0 %}
+{% set failed_count = summary.failed or 0 %}
+{% set cancelled_count = summary.cancelled or 0 %}
+
+<div class="panel-header actions-hero">
+  <div>
+    <div class="eyebrow">Remote Operations</div>
+    <h2 class="page-title">Command Center</h2>
+    <p>Queue, approve, and monitor command execution across your fleet.</p>
+  </div>
+
+  <div class="actions-hero-meta">
+    <span class="summary-chip" id="hero-pending">{{ summary.pending }} pending</span>
+    <span class="summary-chip" id="hero-active">{{ summary.active }} active</span>
+    <span class="summary-chip" id="hero-total">{{ summary.total }} total</span>
+  </div>
+</div>
+
+<section class="summary-grid actions-summary-grid">
+  <div class="summary-card {{ 'status-danger' if summary.pending > 0 else 'status-good' }}">
+    <div class="summary-card-inner">
+      <div class="summary-top">
+        <div>
+          <div class="summary-kicker">Pending Approval</div>
+          <div class="summary-value" id="summary-pending">{{ summary.pending }}</div>
+        </div>
+        <div class="summary-trend {{ 'danger' if summary.pending > 0 else 'good' }}">
+          {{ '!' if summary.pending > 0 else '✓' }}
+        </div>
+      </div>
+      <div class="summary-subtext">Commands waiting for human review before execution.</div>
+    </div>
+  </div>
+
+  <div class="summary-card {{ 'status-warn' if summary.active > 0 else 'status-good' }}">
+    <div class="summary-card-inner">
+      <div class="summary-top">
+        <div>
+          <div class="summary-kicker">Active</div>
+          <div class="summary-value" id="summary-active">{{ summary.active }}</div>
+        </div>
+        <div class="summary-trend {{ 'warn' if summary.active > 0 else 'good' }}">
+          {{ '↻' if summary.active > 0 else '✓' }}
+        </div>
+      </div>
+      <div class="summary-subtext">Approved, sent, or in-progress commands still moving through the pipeline.</div>
+    </div>
+  </div>
+
+  <div class="summary-card status-good">
+    <div class="summary-card-inner">
+      <div class="summary-top">
+        <div>
+          <div class="summary-kicker">Completed</div>
+          <div class="summary-value" id="summary-completed">{{ completed_count }}</div>
+        </div>
+        <div class="summary-trend good">✓</div>
+      </div>
+      <div class="summary-subtext">Recently completed command executions in visible history.</div>
+    </div>
+  </div>
+
+  <div class="summary-card {{ 'status-danger' if failed_count > 0 else 'status-good' }}">
+    <div class="summary-card-inner">
+      <div class="summary-top">
+        <div>
+          <div class="summary-kicker">Failures</div>
+          <div class="summary-value" id="summary-failed">{{ failed_count }}</div>
+        </div>
+        <div class="summary-trend {{ 'danger' if failed_count > 0 else 'good' }}">
+          {{ '!' if failed_count > 0 else '✓' }}
+        </div>
+      </div>
+      <div class="summary-subtext">Commands that ended in failed status in the visible history feed.</div>
+      <div class="summary-meta">
+        <span class="summary-chip" id="summary-cancelled">{{ cancelled_count }} cancelled</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="actions-layout">
+  <div class="actions-main">
+
+    <section class="panel action-builder-panel">
+      <div class="panel-header split-header">
+        <div>
+          <h3>Queue Command</h3>
+          <p>Create a remote action and send it to the approval workflow.</p>
+        </div>
+        <span class="summary-chip">{{ machines|length }} machine{{ '' if machines|length == 1 else 's' }} available</span>
+      </div>
+
+      <div class="action-builder-shell">
+        <form method="post" class="compact-form">
+          <input type="hidden" name="form_type" value="create_command">
+
+          <div class="action-builder-grid">
+            <label class="field">
+              <span>Machine</span>
+              <select name="machine_id" required>
+                {% for machine in machines %}
+                <option value="{{ machine.id }}">
+                  {{ machine.display_name or machine.hostname }}{% if machine.machine_role %} · {{ machine.machine_role }}{% endif %}{% if not machine.is_online %} · offline{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+              <small class="helper-text">Choose the destination machine for this command.</small>
+            </label>
+
+            <label class="field">
+              <span>Action</span>
+              <select name="action_type" id="action_type" required>
+                <option value="restart_service">Restart Service</option>
+                <option value="stop_process">Stop Process</option>
+                <option value="reboot_machine">Reboot Machine</option>
+              </select>
+              <small class="helper-text">The form updates automatically based on the selected action.</small>
+            </label>
+
+            <label class="field action-field" id="service_name_field">
+              <span>Service Name</span>
+              <input type="text" name="service_name" placeholder="Apache or MySQL">
+              <small class="helper-text">Used for restart_service commands.</small>
+            </label>
+
+            <label class="field action-field" id="pid_field" style="display:none;">
+              <span>PID</span>
+              <input type="number" name="pid" placeholder="1234">
+              <small class="helper-text">Used for stop_process commands.</small>
+            </label>
+
+            <label class="field action-field" id="delay_field" style="display:none;">
+              <span>Delay (seconds)</span>
+              <input type="number" name="delay_seconds" value="5" min="0">
+              <small class="helper-text">Used for reboot_machine commands.</small>
+            </label>
+          </div>
+
+          <div class="action-helper-note">
+            New commands are intentionally created in a safe review state first. Approve them below to allow agent pickup.
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="button-primary">Queue Command</button>
+          </div>
+        </form>
+
+        <aside class="builder-side-note">
+          <h4>Command Safety</h4>
+          <div class="builder-note-list">
+            <div class="builder-note-item">
+              <strong>Restart Service</strong>
+              <span>Best first-response action for service outages.</span>
+            </div>
+            <div class="builder-note-item">
+              <strong>Stop Process</strong>
+              <span>Confirm the PID carefully before approval.</span>
+            </div>
+            <div class="builder-note-item">
+              <strong>Reboot Machine</strong>
+              <span>Use short delays intentionally and review target machine state first.</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header split-header">
+        <div>
+          <h3>Pending Approval</h3>
+          <p>Commands waiting for a human decision before they can execute.</p>
+        </div>
+        <span class="summary-chip" id="pending-count-chip">{{ pending_commands|length }} pending</span>
+      </div>
+
+      <div id="pending-commands-container">
+        {% if pending_commands %}
+          <div class="command-card-stack">
+            {% for row in pending_commands %}
+              {% set row_command_json = {
+                "id": row.id,
+                "machine_label": row.machine_label,
+                "machine_role": row.machine_role,
+                "is_online": row.is_online,
+                "action_label": row.action_label,
+                "action_type": row.action_type,
+                "status": row.status,
+                "status_normalized": row.status_normalized,
+                "source": row.source,
+                "requested_by": row.requested_by,
+                "trigger_alert_id": row.trigger_alert_id,
+                "created_at": row.created_at,
+                "approved_at": row.approved_at,
+                "completed_at": row.completed_at,
+                "payload_json": row.action_payload_json,
+                "result_text": row.result_text
+              }|tojson %}
+              <article
+                class="command-card pending-card"
+                data-command="{{ row_command_json|forceescape }}"
+              >
+                <div class="command-card-top">
+                  <div class="command-card-title-wrap">
+                    <h4>{{ row.action_label }}</h4>
+                    <div class="command-meta-line">
+                      <span class="command-machine-name">{{ row.machine_label }}</span>
+                      {% if row.machine_role %}
+                        <span>· {{ row.machine_role }}</span>
+                      {% endif %}
+                      <span>· {{ row.created_at or 'Unknown time' }}</span>
+                    </div>
+                  </div>
+
+                  <div class="command-card-pills">
+                    <span class="status-pill pill-warning">Pending Approval</span>
+                    <span class="status-pill {{ 'pill-online' if row.is_online else 'pill-offline' }}">
+                      {{ 'Online' if row.is_online else 'Offline' }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="command-detail-grid">
+                  <div class="command-detail-box">
+                    <span class="stat-label">Source</span>
+                    <strong>{{ row.source or 'dashboard' }}</strong>
+                  </div>
+
+                  <div class="command-detail-box">
+                    <span class="stat-label">Requested By</span>
+                    <strong>{{ row.requested_by or 'unknown' }}</strong>
+                  </div>
+
+                  <div class="command-detail-box command-detail-wide">
+                    <span class="stat-label">Payload</span>
+                    <strong class="mono payload-text">{{ row.action_payload_json or '{}' }}</strong>
+                  </div>
+
+                  <div class="command-detail-box">
+                    <span class="stat-label">Trigger Alert</span>
+                    <strong>{{ ('#' ~ row.trigger_alert_id) if row.trigger_alert_id else '—' }}</strong>
+                  </div>
+                </div>
+
+                <div class="command-action-row">
+                  <form method="post">
+                    <input type="hidden" name="form_type" value="approve_command">
+                    <input type="hidden" name="command_id" value="{{ row.id }}">
+                    <button type="submit" class="button-primary small-button">Approve</button>
+                  </form>
+
+                  <form method="post">
+                    <input type="hidden" name="form_type" value="cancel_command">
+                    <input type="hidden" name="command_id" value="{{ row.id }}">
+                    <button type="submit" class="button-secondary small-button">Cancel</button>
+                  </form>
+
+                  <button type="button" class="button-secondary small-button command-details-trigger">Details</button>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state actions-empty">
+            <h3>No pending commands</h3>
+            <p>Newly queued commands will appear here until they are approved or cancelled.</p>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header split-header">
+        <div>
+          <h3>Active Commands</h3>
+          <p>Commands that are approved, sent, or still in progress.</p>
+        </div>
+        <span class="summary-chip" id="active-count-chip">{{ active_commands|length }} active</span>
+      </div>
+
+      <div id="active-commands-container">
+        {% if active_commands %}
+          <div class="command-card-stack compact">
+            {% for row in active_commands %}
+              {% set row_command_json = {
+                "id": row.id,
+                "machine_label": row.machine_label,
+                "machine_role": row.machine_role,
+                "is_online": row.is_online,
+                "action_label": row.action_label,
+                "action_type": row.action_type,
+                "status": row.status,
+                "status_normalized": row.status_normalized,
+                "source": row.source,
+                "requested_by": row.requested_by,
+                "trigger_alert_id": row.trigger_alert_id,
+                "created_at": row.created_at,
+                "approved_at": row.approved_at,
+                "completed_at": row.completed_at,
+                "payload_json": row.action_payload_json,
+                "result_text": row.result_text
+              }|tojson %}
+              <article
+                class="command-card active-card"
+                data-command="{{ row_command_json|forceescape }}"
+              >
+                <div class="command-card-top">
+                  <div class="command-card-title-wrap">
+                    <h4>{{ row.action_label }}</h4>
+                    <div class="command-meta-line">
+                      <span class="command-machine-name">{{ row.machine_label }}</span>
+                      <span>· {{ row.created_at or 'Unknown time' }}</span>
+                    </div>
+                  </div>
+
+                  <div class="command-card-pills">
+                    {% if row.status_normalized in ['approved'] %}
+                      <span class="status-pill pill-muted">{{ row.status }}</span>
+                    {% elif row.status_normalized in ['sent', 'running', 'in_progress'] %}
+                      <span class="status-pill pill-info">{{ row.status }}</span>
+                    {% else %}
+                      <span class="status-pill pill-warning">{{ row.status }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div class="command-detail-grid">
+                  <div class="command-detail-box">
+                    <span class="stat-label">Source</span>
+                    <strong>{{ row.source or 'dashboard' }}</strong>
+                  </div>
+
+                  <div class="command-detail-box">
+                    <span class="stat-label">Requested By</span>
+                    <strong>{{ row.requested_by or 'unknown' }}</strong>
+                  </div>
+
+                  <div class="command-detail-box command-detail-wide">
+                    <span class="stat-label">Payload</span>
+                    <strong class="mono payload-text">{{ row.action_payload_json or '{}' }}</strong>
+                  </div>
+                </div>
+
+                <div class="command-action-row">
+                  {% if row.status in ['approved', 'sent'] %}
+                  <form method="post">
+                    <input type="hidden" name="form_type" value="cancel_command">
+                    <input type="hidden" name="command_id" value="{{ row.id }}">
+                    <button type="submit" class="button-secondary small-button">Cancel</button>
+                  </form>
+                  {% endif %}
+                  <button type="button" class="button-secondary small-button command-details-trigger">Details</button>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state actions-empty">
+            <h3>No active commands</h3>
+            <p>Approved or running commands will appear here while they are in motion.</p>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header split-header">
+        <div>
+          <h3>History</h3>
+          <p>Recent completed, failed, and cancelled command activity.</p>
+        </div>
+        <span class="summary-chip" id="history-count-chip">{{ history_commands|length }} in history</span>
+      </div>
+
+      <div class="table-wrap actions-history-wrap">
+        <table class="actions-history-table">
+          <thead>
+            <tr>
+              <th>Machine</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th>Source</th>
+              <th>Requested By</th>
+              <th>Time</th>
+              <th>Result</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body">
+            {% for row in history_commands %}
+              {% set row_command_json = {
+                "id": row.id,
+                "machine_label": row.machine_label,
+                "machine_role": row.machine_role,
+                "is_online": row.is_online,
+                "action_label": row.action_label,
+                "action_type": row.action_type,
+                "status": row.status,
+                "status_normalized": row.status_normalized,
+                "source": row.source,
+                "requested_by": row.requested_by,
+                "trigger_alert_id": row.trigger_alert_id,
+                "created_at": row.created_at,
+                "approved_at": row.approved_at,
+                "completed_at": row.completed_at,
+                "payload_json": row.action_payload_json,
+                "result_text": row.result_text
+              }|tojson %}
+              <tr data-command="{{ row_command_json|forceescape }}">
+                <td>
+                  <div class="history-machine-cell">
+                    <strong>{{ row.machine_label }}</strong>
+                    {% if row.machine_role %}
+                      <div class="history-machine-sub">{{ row.machine_role }}</div>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <div class="history-action-cell">
+                    <strong>{{ row.action_label }}</strong>
+                    <div class="history-action-sub mono">{{ row.action_payload_json or '{}' }}</div>
+                  </div>
+                </td>
+                <td>
+                  {% if row.status_normalized in ['completed', 'success'] %}
+                    <span class="status-pill pill-online">{{ row.status }}</span>
+                  {% elif row.status_normalized in ['failed', 'error'] %}
+                    <span class="status-pill pill-offline">{{ row.status }}</span>
+                  {% elif row.status_normalized in ['cancelled', 'canceled'] %}
+                    <span class="status-pill pill-muted">{{ row.status }}</span>
+                  {% else %}
+                    <span class="status-pill pill-warning">{{ row.status }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ row.source or 'dashboard' }}</td>
+                <td>{{ row.requested_by or 'unknown' }}</td>
+                <td>{{ row.created_at or '—' }}</td>
+                <td class="history-result-cell">{{ row.result_text or '—' }}</td>
+                <td><button type="button" class="button-secondary small-button command-details-trigger">Details</button></td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="8">
+                  <div class="empty-state actions-empty">
+                    <h3>No command history yet</h3>
+                    <p>Completed, failed, and cancelled commands will accumulate here.</p>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <aside class="actions-sidebar">
+    <div class="actions-side-card">
+      <h3>Workflow</h3>
+      <div class="actions-side-list">
+        <div class="actions-side-item">
+          <strong>Create</strong>
+          <span>Build a targeted command from the queue form.</span>
+        </div>
+        <div class="actions-side-item">
+          <strong>Approve</strong>
+          <span>Review pending commands before they are allowed to execute.</span>
+        </div>
+        <div class="actions-side-item">
+          <strong>Execute</strong>
+          <span>Agents poll for approved work and return status updates.</span>
+        </div>
+        <div class="actions-side-item">
+          <strong>Review</strong>
+          <span>Use the history table to validate results and operator actions.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions-side-card">
+      <h3>Safe Defaults</h3>
+      <div class="actions-side-list compact">
+        <div class="actions-side-item">
+          <strong>Restart Service</strong>
+          <span>Best first-response action for service outages.</span>
+        </div>
+        <div class="actions-side-item">
+          <strong>Reboot Machine</strong>
+          <span>Reserve for machines that truly need a restart.</span>
+        </div>
+        <div class="actions-side-item">
+          <strong>Stop Process</strong>
+          <span>Double-check PIDs before approving the command.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions-side-card">
+      <h3>Current Snapshot</h3>
+      <div class="snapshot-grid">
+        <div class="snapshot-item">
+          <span class="stat-label">Pending</span>
+          <strong id="snapshot-pending">{{ summary.pending }}</strong>
+        </div>
+        <div class="snapshot-item">
+          <span class="stat-label">Active</span>
+          <strong id="snapshot-active">{{ summary.active }}</strong>
+        </div>
+        <div class="snapshot-item">
+          <span class="stat-label">Completed</span>
+          <strong id="snapshot-completed">{{ completed_count }}</strong>
+        </div>
+        <div class="snapshot-item">
+          <span class="stat-label">Failed</span>
+          <strong id="snapshot-failed">{{ failed_count }}</strong>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="command-modal-backdrop" id="command-modal-backdrop" hidden>
+  <div class="command-modal" role="dialog" aria-modal="true" aria-labelledby="command-modal-title">
+    <div class="command-modal-header">
+      <div>
+        <div class="eyebrow">Command Details</div>
+        <h3 id="command-modal-title">Command</h3>
+      </div>
+      <button type="button" class="modal-close-button" id="command-modal-close" aria-label="Close">×</button>
+    </div>
+
+    <div class="command-modal-body">
+      <div class="command-modal-grid">
+        <div class="command-detail-box">
+          <span class="stat-label">Machine</span>
+          <strong id="modal-machine">—</strong>
+        </div>
+        <div class="command-detail-box">
+          <span class="stat-label">Status</span>
+          <strong id="modal-status">—</strong>
+        </div>
+        <div class="command-detail-box">
+          <span class="stat-label">Action</span>
+          <strong id="modal-action">—</strong>
+        </div>
+        <div class="command-detail-box">
+          <span class="stat-label">Source</span>
+          <strong id="modal-source">—</strong>
+        </div>
+        <div class="command-detail-box">
+          <span class="stat-label">Requested By</span>
+          <strong id="modal-requested-by">—</strong>
+        </div>
+        <div class="command-detail-box">
+          <span class="stat-label">Trigger Alert</span>
+          <strong id="modal-alert">—</strong>
+        </div>
+        <div class="command-detail-box">
+          <span class="stat-label">Created</span>
+          <strong id="modal-created">—</strong>
+        </div>
+        <div class="command-detail-box">
+          <span class="stat-label">Approved</span>
+          <strong id="modal-approved">—</strong>
+        </div>
+        <div class="command-detail-box">
+          <span class="stat-label">Completed</span>
+          <strong id="modal-completed">—</strong>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <span class="stat-label">Payload</span>
+        <pre class="modal-code-block" id="modal-payload">{}</pre>
+      </div>
+
+      <div class="modal-section">
+        <span class="stat-label">Result</span>
+        <pre class="modal-code-block" id="modal-result">—</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.actions-hero{
+  margin-bottom:18px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+}
+
+.actions-hero .page-title{
+  margin-bottom:6px;
+}
+
+.actions-hero-meta{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.actions-summary-grid{
+  margin-bottom:18px;
+}
+
+.actions-layout{
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) 320px;
+  gap:20px;
+}
+
+.actions-main{
+  display:grid;
+  gap:20px;
+  min-width:0;
+}
+
+.actions-sidebar{
+  display:grid;
+  gap:20px;
+  align-self:start;
+}
+
+.action-builder-panel{
+  overflow:hidden;
+}
+
+.action-builder-shell{
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) 280px;
+  gap:18px;
+  align-items:start;
+}
+
+.action-builder-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+  gap:14px;
+}
+
+.action-helper-note{
+  margin-top:12px;
+  color:#9fb5ca;
+  font-size:13px;
+  line-height:1.5;
+}
+
+.builder-side-note{
+  border:1px solid var(--border);
+  border-radius:18px;
+  background:linear-gradient(180deg, rgba(0,204,102,.03), rgba(255,255,255,.01));
+  padding:16px;
+}
+
+.builder-side-note h4{
+  margin:0 0 12px;
+  font-size:16px;
+}
+
+.builder-note-list{
+  display:grid;
+  gap:12px;
+}
+
+.builder-note-item{
+  display:grid;
+  gap:4px;
+  padding-bottom:10px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.builder-note-item:last-child{
+  border-bottom:none;
+  padding-bottom:0;
+}
+
+.builder-note-item strong{
+  font-size:14px;
+}
+
+.builder-note-item span{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+
+.command-card-stack{
+  display:grid;
+  gap:14px;
+}
+
+.command-card-stack.compact{
+  gap:12px;
+}
+
+.command-card{
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:16px;
+  background:linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,.01));
+}
+
+.pending-card{
+  box-shadow:0 0 0 1px rgba(251,191,36,.18), 0 0 18px rgba(251,191,36,.06);
+}
+
+.active-card{
+  box-shadow:0 0 0 1px rgba(96,165,250,.16), 0 0 18px rgba(96,165,250,.05);
+}
+
+.command-card-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:14px;
+}
+
+.command-card-title-wrap{
+  min-width:0;
+}
+
+.command-card-title-wrap h4{
+  margin:0 0 6px;
+}
+
+.command-meta-line{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  color:#8ea5bc;
+  font-size:12px;
+  line-height:1.4;
+}
+
+.command-machine-name{
+  color:#eaf2fb;
+  font-weight:700;
+}
+
+.command-card-pills{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.command-detail-grid{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:12px;
+}
+
+.command-detail-box{
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.02);
+  min-width:0;
+}
+
+.command-detail-box strong{
+  display:block;
+  margin-top:6px;
+  line-height:1.5;
+  color:#dce8f5;
+}
+
+.command-detail-wide{
+  grid-column:span 2;
+}
+
+.payload-text{
+  word-break:break-word;
+}
+
+.command-action-row{
+  margin-top:14px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.actions-side-card{
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.015) 100%);
+  padding:18px;
+  box-shadow:var(--shadow);
+}
+
+.actions-side-card h3{
+  margin:0 0 14px;
+}
+
+.actions-side-list{
+  display:grid;
+  gap:12px;
+}
+
+.actions-side-list.compact{
+  gap:10px;
+}
+
+.actions-side-item{
+  display:grid;
+  gap:4px;
+  padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.actions-side-item:last-child{
+  border-bottom:0;
+  padding-bottom:0;
+}
+
+.actions-side-item strong{
+  font-size:14px;
+}
+
+.actions-side-item span{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+
+.snapshot-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+
+.snapshot-item{
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.02);
+}
+
+.snapshot-item strong{
+  display:block;
+  margin-top:6px;
+  font-size:20px;
+}
+
+.actions-empty{
+  padding:22px;
+}
+
+.actions-history-wrap{
+  width:100%;
+  overflow-x:auto;
+}
+
+.actions-history-table{
+  width:100%;
+  min-width:980px;
+}
+
+.history-machine-cell{
+  display:grid;
+  gap:4px;
+}
+
+.history-machine-sub{
+  color:#8ea5bc;
+  font-size:12px;
+}
+
+.history-action-cell{
+  display:grid;
+  gap:6px;
+}
+
+.history-action-sub{
+  color:#9fb5ca;
+  font-size:12px;
+  line-height:1.4;
+  word-break:break-word;
+}
+
+.history-result-cell{
+  min-width:180px;
+  max-width:280px;
+  color:#dce8f5;
+  line-height:1.45;
+  word-break:break-word;
+}
+
+.command-modal-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(3,8,18,.72);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  z-index:999;
+  backdrop-filter:blur(6px);
+}
+
+.command-modal-backdrop[hidden]{
+  display:none !important;
+}
+
+.command-modal{
+  width:min(920px, 100%);
+  max-height:90vh;
+  overflow:auto;
+  border:1px solid var(--border);
+  border-radius:22px;
+  background:linear-gradient(180deg, rgba(13,25,48,.98), rgba(10,20,38,.98));
+  box-shadow:0 20px 60px rgba(0,0,0,.45);
+}
+
+.command-modal-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  padding:20px 20px 14px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.command-modal-body{
+  padding:18px 20px 20px;
+}
+
+.command-modal-grid{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:12px;
+  margin-bottom:16px;
+}
+
+.modal-section{
+  margin-top:14px;
+}
+
+.modal-code-block{
+  margin:8px 0 0;
+  padding:14px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.03);
+  color:#dce8f5;
+  white-space:pre-wrap;
+  word-break:break-word;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:12px;
+  line-height:1.5;
+}
+
+.modal-close-button{
+  border:none;
+  background:rgba(255,255,255,.06);
+  color:#fff;
+  width:36px;
+  height:36px;
+  border-radius:999px;
+  cursor:pointer;
+  font-size:22px;
+  line-height:1;
+}
+
+.command-details-trigger{
+  cursor:pointer;
+}
+
+@media (max-width: 1280px){
+  .action-builder-shell{
+    grid-template-columns:1fr;
+  }
+
+  .actions-layout{
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width: 900px){
+  .command-detail-grid,
+  .command-modal-grid{
+    grid-template-columns:1fr;
+  }
+
+  .command-detail-wide{
+    grid-column:span 1;
+  }
+}
+
+@media (max-width: 700px){
+  .actions-hero{
+    align-items:flex-start;
+  }
+
+  .command-card-top{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .command-card-pills{
+    justify-content:flex-start;
+  }
+
+  .snapshot-grid{
+    grid-template-columns:1fr;
+  }
+}
+</style>
+
+<script>
+(function () {
+  const actionType = document.getElementById("action_type");
+  const serviceField = document.getElementById("service_name_field");
+  const pidField = document.getElementById("pid_field");
+  const delayField = document.getElementById("delay_field");
+
+  function sync() {
+    if (!actionType || !serviceField || !pidField || !delayField) return;
+
+    const value = actionType.value;
+    serviceField.style.display = value === "restart_service" ? "" : "none";
+    pidField.style.display = value === "stop_process" ? "" : "none";
+    delayField.style.display = value === "reboot_machine" ? "" : "none";
+  }
+
+  if (actionType) {
+    actionType.addEventListener("change", sync);
+    sync();
+  }
+
+  const modalBackdrop = document.getElementById("command-modal-backdrop");
+  const modalClose = document.getElementById("command-modal-close");
+
+  function openCommandModal(command) {
+    document.getElementById("command-modal-title").textContent = `#${command.id} · ${command.action_label || command.action_type || "Command"}`;
+    document.getElementById("modal-machine").textContent = command.machine_label || "—";
+    document.getElementById("modal-status").textContent = command.status || "—";
+    document.getElementById("modal-action").textContent = command.action_label || command.action_type || "—";
+    document.getElementById("modal-source").textContent = command.source || "—";
+    document.getElementById("modal-requested-by").textContent = command.requested_by || "—";
+    document.getElementById("modal-alert").textContent = command.trigger_alert_id ? `#${command.trigger_alert_id}` : "—";
+    document.getElementById("modal-created").textContent = command.created_at || "—";
+    document.getElementById("modal-approved").textContent = command.approved_at || "—";
+    document.getElementById("modal-completed").textContent = command.completed_at || "—";
+    document.getElementById("modal-payload").textContent = command.payload_json || "{}";
+    document.getElementById("modal-result").textContent = command.result_text || "—";
+    modalBackdrop.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeCommandModal() {
+    modalBackdrop.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  if (modalClose) {
+    modalClose.addEventListener("click", closeCommandModal);
+  }
+
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener("click", function (event) {
+      if (event.target === modalBackdrop) {
+        closeCommandModal();
+      }
+    });
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && modalBackdrop && !modalBackdrop.hidden) {
+      closeCommandModal();
+    }
+  });
+
+  function bindDetailsTriggers() {
+    document.querySelectorAll(".command-details-trigger").forEach((button) => {
+      if (button.dataset.bound === "true") return;
+      button.dataset.bound = "true";
+      button.addEventListener("click", function () {
+        const host = button.closest("[data-command]");
+        if (!host) return;
+        const raw = host.getAttribute("data-command");
+        if (!raw) return;
+        try {
+          openCommandModal(JSON.parse(raw));
+        } catch (err) {
+          console.error("Failed to open command modal:", err);
+        }
+      });
+    });
+  }
+
+  function buildStatusPill(status, normalized) {
+    if (["completed", "success"].includes(normalized)) {
+      return `<span class="status-pill pill-online">${status}</span>`;
+    }
+    if (["failed", "error"].includes(normalized)) {
+      return `<span class="status-pill pill-offline">${status}</span>`;
+    }
+    if (["cancelled", "canceled"].includes(normalized)) {
+      return `<span class="status-pill pill-muted">${status}</span>`;
+    }
+    if (["sent", "running", "in_progress"].includes(normalized)) {
+      return `<span class="status-pill pill-info">${status}</span>`;
+    }
+    if (["pending_approval"].includes(normalized)) {
+      return `<span class="status-pill pill-warning">${status}</span>`;
+    }
+    return `<span class="status-pill pill-muted">${status || "unknown"}</span>`;
+  }
+
+  function escapeAttr(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function buildPendingHtml(commands) {
+    if (!commands.length) {
+      return `
+        <div class="empty-state actions-empty">
+          <h3>No pending commands</h3>
+          <p>Newly queued commands will appear here until they are approved or cancelled.</p>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="command-card-stack">
+        ${commands.map((row) => `
+          <article class="command-card pending-card" data-command="${escapeAttr(JSON.stringify(row))}">
+            <div class="command-card-top">
+              <div class="command-card-title-wrap">
+                <h4>${escapeHtml(row.action_label || "Unknown")}</h4>
+                <div class="command-meta-line">
+                  <span class="command-machine-name">${escapeHtml(row.machine_label || "Unknown Machine")}</span>
+                  ${row.machine_role ? `<span>· ${escapeHtml(row.machine_role)}</span>` : ""}
+                  <span>· ${escapeHtml(row.created_at || "Unknown time")}</span>
+                </div>
+              </div>
+              <div class="command-card-pills">
+                <span class="status-pill pill-warning">Pending Approval</span>
+                <span class="status-pill ${row.is_online ? "pill-online" : "pill-offline"}">${row.is_online ? "Online" : "Offline"}</span>
+              </div>
+            </div>
+
+            <div class="command-detail-grid">
+              <div class="command-detail-box">
+                <span class="stat-label">Source</span>
+                <strong>${escapeHtml(row.source || "dashboard")}</strong>
+              </div>
+              <div class="command-detail-box">
+                <span class="stat-label">Requested By</span>
+                <strong>${escapeHtml(row.requested_by || "unknown")}</strong>
+              </div>
+              <div class="command-detail-box command-detail-wide">
+                <span class="stat-label">Payload</span>
+                <strong class="mono payload-text">${escapeHtml(row.payload_json || "{}")}</strong>
+              </div>
+              <div class="command-detail-box">
+                <span class="stat-label">Trigger Alert</span>
+                <strong>${row.trigger_alert_id ? "#" + escapeHtml(row.trigger_alert_id) : "—"}</strong>
+              </div>
+            </div>
+
+            <div class="command-action-row">
+              <form method="post">
+                <input type="hidden" name="form_type" value="approve_command">
+                <input type="hidden" name="command_id" value="${escapeAttr(row.id)}">
+                <button type="submit" class="button-primary small-button">Approve</button>
+              </form>
+
+              <form method="post">
+                <input type="hidden" name="form_type" value="cancel_command">
+                <input type="hidden" name="command_id" value="${escapeAttr(row.id)}">
+                <button type="submit" class="button-secondary small-button">Cancel</button>
+              </form>
+
+              <button type="button" class="button-secondary small-button command-details-trigger">Details</button>
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function buildActiveHtml(commands) {
+    if (!commands.length) {
+      return `
+        <div class="empty-state actions-empty">
+          <h3>No active commands</h3>
+          <p>Approved or running commands will appear here while they are in motion.</p>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="command-card-stack compact">
+        ${commands.map((row) => `
+          <article class="command-card active-card" data-command="${escapeAttr(JSON.stringify(row))}">
+            <div class="command-card-top">
+              <div class="command-card-title-wrap">
+                <h4>${escapeHtml(row.action_label || "Unknown")}</h4>
+                <div class="command-meta-line">
+                  <span class="command-machine-name">${escapeHtml(row.machine_label || "Unknown Machine")}</span>
+                  <span>· ${escapeHtml(row.created_at || "Unknown time")}</span>
+                </div>
+              </div>
+              <div class="command-card-pills">
+                ${buildStatusPill(escapeHtml(row.status || "unknown"), row.status_normalized || "")}
+              </div>
+            </div>
+
+            <div class="command-detail-grid">
+              <div class="command-detail-box">
+                <span class="stat-label">Source</span>
+                <strong>${escapeHtml(row.source || "dashboard")}</strong>
+              </div>
+              <div class="command-detail-box">
+                <span class="stat-label">Requested By</span>
+                <strong>${escapeHtml(row.requested_by || "unknown")}</strong>
+              </div>
+              <div class="command-detail-box command-detail-wide">
+                <span class="stat-label">Payload</span>
+                <strong class="mono payload-text">${escapeHtml(row.payload_json || "{}")}</strong>
+              </div>
+            </div>
+
+            <div class="command-action-row">
+              ${["approved", "sent"].includes(row.status_normalized || "") ? `
+              <form method="post">
+                <input type="hidden" name="form_type" value="cancel_command">
+                <input type="hidden" name="command_id" value="${escapeAttr(row.id)}">
+                <button type="submit" class="button-secondary small-button">Cancel</button>
+              </form>` : ""}
+              <button type="button" class="button-secondary small-button command-details-trigger">Details</button>
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function buildHistoryHtml(commands) {
+    if (!commands.length) {
+      return `
+        <tr>
+          <td colspan="8">
+            <div class="empty-state actions-empty">
+              <h3>No command history yet</h3>
+              <p>Completed, failed, and cancelled commands will accumulate here.</p>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    return commands.map((row) => `
+      <tr data-command="${escapeAttr(JSON.stringify(row))}">
+        <td>
+          <div class="history-machine-cell">
+            <strong>${escapeHtml(row.machine_label || "Unknown Machine")}</strong>
+            ${row.machine_role ? `<div class="history-machine-sub">${escapeHtml(row.machine_role)}</div>` : ""}
+          </div>
+        </td>
+        <td>
+          <div class="history-action-cell">
+            <strong>${escapeHtml(row.action_label || "Unknown")}</strong>
+            <div class="history-action-sub mono">${escapeHtml(row.payload_json || "{}")}</div>
+          </div>
+        </td>
+        <td>${buildStatusPill(escapeHtml(row.status || "unknown"), row.status_normalized || "")}</td>
+        <td>${escapeHtml(row.source || "dashboard")}</td>
+        <td>${escapeHtml(row.requested_by || "unknown")}</td>
+        <td>${escapeHtml(row.created_at || "—")}</td>
+        <td class="history-result-cell">${escapeHtml(row.result_text || "—")}</td>
+        <td><button type="button" class="button-secondary small-button command-details-trigger">Details</button></td>
+      </tr>
+    `).join("");
+  }
+
+  async function pollCommands() {
+    try {
+      const response = await fetch("{{ url_for('actions.actions_poll') }}", {
+        headers: {
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        cache: "no-store"
+      });
+
+      if (!response.ok) return;
+      const data = await response.json();
+
+      document.getElementById("hero-pending").textContent = `${data.summary.pending} pending`;
+      document.getElementById("hero-active").textContent = `${data.summary.active} active`;
+      document.getElementById("hero-total").textContent = `${data.summary.total} total`;
+
+      document.getElementById("summary-pending").textContent = data.summary.pending;
+      document.getElementById("summary-active").textContent = data.summary.active;
+      document.getElementById("summary-completed").textContent = data.summary.completed;
+      document.getElementById("summary-failed").textContent = data.summary.failed;
+      document.getElementById("summary-cancelled").textContent = `${data.summary.cancelled} cancelled`;
+
+      document.getElementById("snapshot-pending").textContent = data.summary.pending;
+      document.getElementById("snapshot-active").textContent = data.summary.active;
+      document.getElementById("snapshot-completed").textContent = data.summary.completed;
+      document.getElementById("snapshot-failed").textContent = data.summary.failed;
+
+      document.getElementById("pending-count-chip").textContent = `${data.pending_commands.length} pending`;
+      document.getElementById("active-count-chip").textContent = `${data.active_commands.length} active`;
+      document.getElementById("history-count-chip").textContent = `${data.history_commands.length} in history`;
+
+      document.getElementById("pending-commands-container").innerHTML = buildPendingHtml(data.pending_commands);
+      document.getElementById("active-commands-container").innerHTML = buildActiveHtml(data.active_commands);
+      document.getElementById("history-table-body").innerHTML = buildHistoryHtml(data.history_commands);
+
+      bindDetailsTriggers();
+    } catch (error) {
+      console.error("Command poll failed:", error);
+    }
+  }
+
+  bindDetailsTriggers();
+  setInterval(pollCommands, 5000);
+})();
+</script>
+
+{% endblock %}

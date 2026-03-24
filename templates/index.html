@@ -1,0 +1,1425 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="panel-header dashboard-hero">
+  <div>
+    <div class="eyebrow">Operations Overview</div>
+    <h2 class="page-title">Dashboard</h2>
+    <p>Live system health, automation readiness, and recent activity across your environment.</p>
+  </div>
+
+  <div class="dashboard-hero-meta">
+    <span class="summary-chip">{{ all_machines_count or total_machines }} total machines</span>
+    <span class="summary-chip">{{ online_count }} online</span>
+    <span class="summary-chip">{{ open_alerts }} open alerts</span>
+  </div>
+</div>
+
+{% if privacy_mode %}
+<section class="panel" style="margin-bottom:20px; border-color: rgba(251,191,36,.22); box-shadow:0 0 0 1px rgba(251,191,36,.08);">
+  <div class="panel-header" style="margin-bottom:0;">
+    <div>
+      <h3 style="margin-bottom:6px;">Privacy Mode Active</h3>
+      <p style="margin:0;">Sensitive identifiers such as IP addresses, hostnames, and usernames are currently masked for safer demos, screenshots, and recordings.</p>
+    </div>
+    <span class="status-pill pill-warning">Masked View</span>
+  </div>
+</section>
+{% endif %}
+
+<section class="summary-grid">
+  <div class="summary-card status-good">
+    <div class="summary-card-inner">
+      <div class="summary-top">
+        <div>
+          <div class="summary-kicker">Fleet</div>
+          <div class="summary-value">{{ all_machines_count or total_machines }}</div>
+        </div>
+        <div class="summary-trend good">✓</div>
+      </div>
+      <div class="summary-subtext">Total machines currently known to LiveWire.</div>
+      <div class="summary-meta">
+        <span class="summary-chip">{{ online_count }} online</span>
+        <span class="summary-chip">{{ offline_count }} offline</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-card {{ 'status-good' if online_count == (all_machines_count or total_machines) and (all_machines_count or total_machines) > 0 else ('status-warn' if online_count > 0 else 'status-danger') }}">
+    <div class="summary-card-inner">
+      <div class="summary-top">
+        <div>
+          <div class="summary-kicker">Online Systems</div>
+          <div class="summary-value">{{ online_count }}</div>
+        </div>
+        <div class="summary-trend {{ 'good' if online_count == (all_machines_count or total_machines) and (all_machines_count or total_machines) > 0 else ('warn' if online_count > 0 else 'danger') }}">
+          {{ '✓' if online_count == (all_machines_count or total_machines) and (all_machines_count or total_machines) > 0 else ('!' if online_count > 0 else '×') }}
+        </div>
+      </div>
+      <div class="summary-subtext">Machines currently checking in within the expected window.</div>
+      <div class="summary-meta">
+        <span class="summary-chip">
+          {% set fleet_total = all_machines_count or total_machines %}
+          {% if fleet_total %}
+            {{ ((online_count / fleet_total) * 100)|round(0)|int }}% availability
+          {% else %}
+            0% availability
+          {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-card {{ 'status-danger' if open_alerts > 0 else 'status-good' }}">
+    <div class="summary-card-inner">
+      <div class="summary-top">
+        <div>
+          <div class="summary-kicker">Open Alerts</div>
+          <div class="summary-value">{{ open_alerts }}</div>
+        </div>
+        <div class="summary-trend {{ 'danger' if open_alerts > 0 else 'good' }}">
+          {{ '!' if open_alerts > 0 else '✓' }}
+        </div>
+      </div>
+      <div class="summary-subtext">Unresolved alert conditions that may require operator review.</div>
+      <div class="summary-meta">
+        <span class="summary-chip">
+          {{ 'Attention needed' if open_alerts > 0 else 'No active issues' }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-card {{ 'status-good' if scheduler.enabled_jobs > 0 else 'status-warn' }}">
+    <div class="summary-card-inner">
+      <div class="summary-top">
+        <div>
+          <div class="summary-kicker">Scheduled Jobs</div>
+          <div class="summary-value">{{ scheduler.enabled_jobs }}</div>
+        </div>
+        <div class="summary-trend {{ 'good' if scheduler.enabled_jobs > 0 else 'warn' }}">
+          {{ '↻' if scheduler.enabled_jobs > 0 else '…' }}
+        </div>
+      </div>
+      <div class="summary-subtext">Recurring automation jobs currently enabled.</div>
+      <div class="summary-meta">
+        <span class="summary-chip">{{ scheduler.disabled_jobs }} disabled</span>
+        <span class="summary-chip">{{ scheduler.due_now }} due now</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-card {{ 'status-good' if scheduler.total_groups > 0 else 'status-warn' }}">
+    <div class="summary-card-inner">
+      <div class="summary-top">
+        <div>
+          <div class="summary-kicker">Machine Groups</div>
+          <div class="summary-value">{{ scheduler.total_groups }}</div>
+        </div>
+        <div class="summary-trend {{ 'good' if scheduler.total_groups > 0 else 'warn' }}">
+          {{ '▣' if scheduler.total_groups > 0 else '…' }}
+        </div>
+      </div>
+      <div class="summary-subtext">Saved machine collections for bulk targeting and organization.</div>
+      <div class="summary-meta">
+        <span class="summary-chip">
+          {{ 'Automation ready' if scheduler.total_groups > 0 else 'No groups yet' }}
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="detail-grid dashboard-top-grid">
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Fleet Health</h3>
+      <p>High-level system health breakdown across the environment.</p>
+    </div>
+
+    <div class="health-summary-grid">
+      <div class="health-box health-healthy">
+        <span class="health-label">Healthy</span>
+        <strong>{{ health_summary.healthy if health_summary is defined else 0 }}</strong>
+        <div class="health-subtext">{{ health_summary.healthy_percent if health_summary is defined else 0 }}%</div>
+      </div>
+      <div class="health-box health-warning">
+        <span class="health-label">Warning</span>
+        <strong>{{ health_summary.warning if health_summary is defined else 0 }}</strong>
+        <div class="health-subtext">{{ health_summary.warning_percent if health_summary is defined else 0 }}%</div>
+      </div>
+      <div class="health-box health-critical">
+        <span class="health-label">Critical</span>
+        <strong>{{ health_summary.critical if health_summary is defined else 0 }}</strong>
+        <div class="health-subtext">{{ health_summary.critical_percent if health_summary is defined else 0 }}%</div>
+      </div>
+      <div class="health-box health-offline">
+        <span class="health-label">Offline</span>
+        <strong>{{ health_summary.offline if health_summary is defined else 0 }}</strong>
+        <div class="health-subtext">{{ health_summary.offline_percent if health_summary is defined else 0 }}%</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Role Breakdown</h3>
+      <p>Inventory distribution by assigned machine role.</p>
+    </div>
+
+    <div class="role-breakdown-list">
+      {% if role_breakdown %}
+        {% for row in role_breakdown %}
+          <div class="role-breakdown-item">
+            <div class="role-breakdown-main">
+              <span class="role-breakdown-name">{{ row.role }}</span>
+              <span class="role-breakdown-percent">{{ row.percent }}%</span>
+            </div>
+            <span class="role-breakdown-count">{{ row.count }}</span>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state compact-empty">
+          <p>No role data yet.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% if incident_spotlight %}
+<section class="panel incident-panel">
+  <div class="panel-header split-header incident-header">
+    <div>
+      <h3>Priority Systems</h3>
+      <p>Machines requiring attention right now.</p>
+    </div>
+    <span class="summary-chip">{{ incident_spotlight|length }} highlighted</span>
+  </div>
+
+  <div class="incident-grid">
+    {% for m in incident_spotlight %}
+      <a class="card-link" href="{{ url_for('machines.machine_detail', machine_id=m.id) }}">
+        <article class="incident-card {{ m.health_status }}">
+          <div class="incident-top">
+            <div class="incident-title-wrap">
+              <strong class="incident-title">
+                {{ m.display_name or (mask_host(m.hostname) if privacy_mode else m.hostname) }}
+              </strong>
+              <div class="incident-subline">
+                <span>{{ m.machine_role or 'No role' }}</span>
+                <span>{{ mask_ip(m.ip_address) if privacy_mode else (m.ip_address or 'No IP') }}</span>
+              </div>
+            </div>
+
+            <span class="status-pill health-pill health-{{ m.health_status }}">
+              {{ m.health_status|title }}
+            </span>
+          </div>
+
+          <div class="incident-metrics">
+            <div class="incident-metric">
+              <span class="incident-metric-label">CPU</span>
+              <strong>{{ "%.0f"|format(m.cpu_percent or 0) }}%</strong>
+            </div>
+            <div class="incident-metric">
+              <span class="incident-metric-label">RAM</span>
+              <strong>{{ "%.0f"|format(m.ram_percent or 0) }}%</strong>
+            </div>
+            <div class="incident-metric">
+              <span class="incident-metric-label">Disk</span>
+              <strong>{{ "%.0f"|format(m.disk_percent or 0) }}%</strong>
+            </div>
+          </div>
+
+          <div class="incident-bottom">
+            <span class="incident-score">Health {{ m.health_score or 0 }}/100</span>
+            {% if m.open_alert_count %}
+              <span class="incident-alerts">
+                {{ m.open_alert_count }} alert{{ '' if m.open_alert_count == 1 else 's' }}
+              </span>
+            {% else %}
+              <span class="incident-alerts muted">No open alerts</span>
+            {% endif %}
+          </div>
+        </article>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="panel machines-panel">
+  <div class="panel-header split-header">
+    <div>
+      <h2>Machines</h2>
+      <p>Current system status for connected devices.</p>
+    </div>
+    <a class="button-secondary button-link" href="{{ url_for('automation.automation') }}">Manage automation</a>
+  </div>
+
+  <form method="get" class="dashboard-filter-bar">
+    <div class="dashboard-filter-grid">
+      <label class="field field-search">
+        <span>Search</span>
+        <input type="text" name="q" value="{{ search_text or '' }}" placeholder="{% if privacy_mode %}Masked search active{% else %}Hostname, user, IP, role, location{% endif %}">
+      </label>
+
+      <label class="field">
+        <span>Status</span>
+        <select name="status">
+          <option value="all" {% if (status_filter or 'all') == 'all' %}selected{% endif %}>All</option>
+          <option value="online" {% if status_filter == 'online' %}selected{% endif %}>Online</option>
+          <option value="offline" {% if status_filter == 'offline' %}selected{% endif %}>Offline</option>
+          <option value="healthy" {% if status_filter == 'healthy' %}selected{% endif %}>Healthy</option>
+          <option value="warning" {% if status_filter == 'warning' %}selected{% endif %}>Warning</option>
+          <option value="critical" {% if status_filter == 'critical' %}selected{% endif %}>Critical</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Role</span>
+        <select name="role">
+          <option value="all" {% if (role_filter or 'all') == 'all' %}selected{% endif %}>All Roles</option>
+          {% if role_breakdown %}
+            {% for row in role_breakdown %}
+              {% set role_value = row.role|lower %}
+              <option value="{{ role_value }}" {% if role_filter == role_value %}selected{% endif %}>{{ row.role }}</option>
+            {% endfor %}
+          {% endif %}
+        </select>
+      </label>
+
+      <div class="filter-actions">
+        <button type="submit" class="button-primary">Apply Filters</button>
+        <a class="button-secondary button-link" href="{{ url_for('dashboard.index') }}">Reset</a>
+      </div>
+    </div>
+
+    <div class="filter-summary-row">
+      <span class="summary-chip">{{ total_machines }} shown</span>
+      {% if all_machines_count is defined and total_machines != all_machines_count %}
+        <span class="summary-chip">{{ all_machines_count }} total in fleet</span>
+      {% endif %}
+      {% if search_text %}
+        <span class="summary-chip">Search: {{ search_text }}</span>
+      {% endif %}
+      {% if status_filter and status_filter != 'all' %}
+        <span class="summary-chip">Status: {{ status_filter|title }}</span>
+      {% endif %}
+      {% if role_filter and role_filter != 'all' %}
+        <span class="summary-chip">Role: {{ role_filter|title }}</span>
+      {% endif %}
+    </div>
+  </form>
+
+  <div class="grid machine-grid">
+    {% for machine in machines %}
+      {% set gpu_count = machine.gpu_count or 0 %}
+      {% set primary_gpu_name = machine.primary_gpu_name %}
+      {% set primary_gpu_vendor = machine.primary_gpu_vendor|upper if machine.primary_gpu_vendor else 'UNKNOWN' %}
+      {% set primary_gpu_source = machine.primary_gpu_source or 'agent' %}
+      {% set primary_gpu_load = machine.primary_gpu_load if machine.primary_gpu_load is not none else none %}
+      {% set primary_gpu_temp = machine.primary_gpu_temp if machine.primary_gpu_temp is not none else none %}
+      {% set primary_gpu_mem_used = machine.primary_gpu_mem_used if machine.primary_gpu_mem_used is not none else none %}
+      {% set primary_gpu_mem_total = machine.primary_gpu_mem_total if machine.primary_gpu_mem_total is not none else none %}
+      {% set primary_gpu_mem_used_gb = ((primary_gpu_mem_used / 1024) | round(1)) if primary_gpu_mem_used is not none else none %}
+      {% set primary_gpu_mem_total_gb = ((primary_gpu_mem_total / 1024) | round(1)) if primary_gpu_mem_total is not none else none %}
+      {% set gpu_vram_percent = ((primary_gpu_mem_used / primary_gpu_mem_total) * 100) if primary_gpu_mem_used is not none and primary_gpu_mem_total else 0 %}
+      {% set freshness = freshness_label(machine.last_seen, freshness_fresh_seconds, freshness_aging_seconds) %}
+      {% set freshness_class = freshness_badge_class(machine.last_seen, freshness_fresh_seconds, freshness_aging_seconds) %}
+      {% set freshness_state_value = freshness_state(machine.last_seen, freshness_fresh_seconds, freshness_aging_seconds) %}
+      {% set source_class = 'source-generic' %}
+      {% set health_score = machine.health_score if machine.health_score is defined else 0 %}
+      {% set health_status = machine.health_status if machine.health_status is defined else 'healthy' %}
+
+      {% if 'nvidia-smi' in primary_gpu_source %}
+        {% set source_class = 'source-nvidia' %}
+      {% elif 'lhm' in primary_gpu_source %}
+        {% set source_class = 'source-lhm' %}
+      {% elif 'wmi' in primary_gpu_source %}
+        {% set source_class = 'source-wmi' %}
+      {% endif %}
+
+      <a class="card-link" href="{{ url_for('machines.machine_detail', machine_id=machine.id) }}">
+        <article class="card dashboard-machine-card {{ 'online' if machine.is_online else 'offline' }} {{ 'machine-fresh' if freshness_state_value == 'fresh' else ('machine-aging' if freshness_state_value == 'aging' else ('machine-stale' if freshness_state_value == 'stale' else 'machine-unknown')) }}">
+          <div class="card-top">
+            <div class="card-title-wrap">
+              <h3>{{ machine.display_name or (mask_host(machine.hostname) if privacy_mode else machine.hostname) }}</h3>
+              <div class="muted">
+                {{ mask_host(machine.hostname) if privacy_mode else machine.hostname }}
+                • {{ machine.os_name or 'Unknown OS' }}
+              </div>
+            </div>
+
+            <div class="card-badges">
+              {% if machine.machine_role %}
+                <span class="status-pill pill-muted">{{ machine.machine_role }}</span>
+              {% endif %}
+              {% if machine.group_names %}
+                <span class="status-pill pill-info">{{ machine.group_names }}</span>
+              {% endif %}
+              {% if machine.open_alert_count %}
+                <span class="status-pill pill-warning">
+                  {{ machine.open_alert_count }} alert{{ '' if machine.open_alert_count == 1 else 's' }}
+                </span>
+              {% endif %}
+              {% if gpu_count > 1 %}
+                <span class="status-pill pill-muted">{{ gpu_count }} GPUs</span>
+              {% endif %}
+              <span class="status-pill health-pill health-{{ health_status }}">{{ health_status|title }}</span>
+              <span class="status-pill {{ freshness_class }}">{{ freshness }}</span>
+              <span class="status-pill {{ 'pill-online' if machine.is_online else 'pill-offline' }}">
+                {{ 'Online' if machine.is_online else 'Offline' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="machine-health-row">
+            <div class="machine-health-top">
+              <span class="stat-label">Health Score</span>
+              <strong>{{ health_score }}/100</strong>
+            </div>
+            <div class="meter small">
+              <div class="meter-fill {% if health_score < 45 %}danger{% elif health_score < 75 %}warning{% endif %}" style="width: {{ health_score }}%"></div>
+            </div>
+          </div>
+
+          {% if machine.health_flags %}
+          <div class="machine-health-flags">
+            {% for flag in machine.health_flags %}
+              <span class="status-pill pill-warning health-flag-pill">{{ flag }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="machine-activity-strip">
+            <div class="activity-mini-card">
+              <div class="activity-mini-head">
+                <span class="mini-label">Last Event</span>
+                <div class="activity-mini-pill-row">
+                  {% if machine.activity_event_label %}
+                    <span class="status-pill {{ machine.activity_event_class }}">{{ machine.activity_event_label }}</span>
+                  {% else %}
+                    <span class="status-pill pill-muted">None</span>
+                  {% endif %}
+                </div>
+              </div>
+
+              {% if machine.activity_event_time_ago %}
+                <div class="activity-mini-stack">
+                  <div class="activity-mini-line">Recent activity detected</div>
+                  <div class="activity-mini-time">{{ machine.activity_event_time_ago }}</div>
+                </div>
+              {% else %}
+                <div class="activity-mini-stack">
+                  <div class="activity-mini-line">No recent event</div>
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="activity-mini-card">
+              <div class="activity-mini-head">
+                <span class="mini-label">Last Command</span>
+                <div class="activity-mini-pill-row">
+                  {% if machine.activity_command_label %}
+                    <span class="status-pill {{ machine.activity_command_class }}">{{ machine.activity_command_label }}</span>
+                  {% else %}
+                    <span class="status-pill pill-muted">None</span>
+                  {% endif %}
+                </div>
+              </div>
+
+              {% if machine.activity_command_status %}
+                <div class="activity-mini-stack">
+                  <div class="activity-mini-line">{{ machine.activity_command_status }}</div>
+                  {% if machine.activity_command_time_ago %}
+                    <div class="activity-mini-time">{{ machine.activity_command_time_ago }}</div>
+                  {% endif %}
+                </div>
+              {% else %}
+                <div class="activity-mini-stack">
+                  <div class="activity-mini-line">No recent command</div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-box">
+              <span class="stat-label">IP</span>
+              <strong>{{ mask_ip(machine.ip_address) if privacy_mode else (machine.ip_address or 'N/A') }}</strong>
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">User</span>
+              <strong>{{ mask_user(machine.current_user) if privacy_mode else (machine.current_user or 'N/A') }}</strong>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-caption">
+                <span class="stat-label">CPU</span>
+                <strong>{{ "%.1f"|format(machine.cpu_percent or 0) }}%</strong>
+              </div>
+              <div class="meter small">
+                <div class="meter-fill {% if (machine.cpu_percent or 0) >= 90 %}danger{% elif (machine.cpu_percent or 0) >= 75 %}warning{% endif %}" style="width: {{ machine.cpu_percent or 0 }}%"></div>
+              </div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-caption">
+                <span class="stat-label">RAM</span>
+                <strong>{{ "%.1f"|format(machine.ram_percent or 0) }}%</strong>
+              </div>
+              <div class="meter small">
+                <div class="meter-fill {% if (machine.ram_percent or 0) >= 90 %}danger{% elif (machine.ram_percent or 0) >= 75 %}warning{% endif %}" style="width: {{ machine.ram_percent or 0 }}%"></div>
+              </div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-caption">
+                <span class="stat-label">Disk</span>
+                <strong>{{ "%.1f"|format(machine.disk_percent or 0) }}%</strong>
+              </div>
+              <div class="meter small">
+                <div class="meter-fill {% if (machine.disk_percent or 0) >= 90 %}danger{% elif (machine.disk_percent or 0) >= 75 %}warning{% endif %}" style="width: {{ machine.disk_percent or 0 }}%"></div>
+              </div>
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">Net Up</span>
+              <strong>{{ format_rate_bps(machine.net_up_bps) }}</strong>
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">Net Down</span>
+              <strong>{{ format_rate_bps(machine.net_down_bps) }}</strong>
+            </div>
+
+            <div class="stat-box gpu-summary-box gpu-summary-wide">
+              <div class="gpu-summary-header">
+                <span class="stat-label">GPU</span>
+                {% if primary_gpu_name %}
+                  <span class="source-pill {{ source_class }}">{{ primary_gpu_source }}</span>
+                {% endif %}
+              </div>
+
+              {% if primary_gpu_name %}
+                <strong class="gpu-summary-name">{{ primary_gpu_name }}</strong>
+                <div class="gpu-summary-meta">
+                  <span class="status-pill gpu-vendor-pill">{{ primary_gpu_vendor }}</span>
+                  {% if gpu_count > 1 %}
+                    <span class="gpu-mini-text">{{ gpu_count }} GPUs detected</span>
+                  {% endif %}
+                </div>
+              {% else %}
+                <strong>Unknown</strong>
+                <div class="gpu-mini-text">No GPU telemetry yet</div>
+              {% endif %}
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">GPU Load</span>
+              <strong>
+                {% if primary_gpu_load is not none %}
+                  {{ "%.1f"|format(primary_gpu_load) }}%
+                {% else %}
+                  Unknown
+                {% endif %}
+              </strong>
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">GPU Temp</span>
+              <strong>
+                {% if primary_gpu_temp is not none %}
+                  {{ "%.1f °C"|format(primary_gpu_temp) }}
+                {% else %}
+                  Unknown
+                {% endif %}
+              </strong>
+            </div>
+
+            <div class="stat-box gpu-summary-wide">
+              <div class="stat-caption">
+                <span class="stat-label">VRAM</span>
+                <strong>
+                  {% if primary_gpu_mem_total_gb is not none %}
+                    {{ "%.1f"|format(primary_gpu_mem_used_gb or 0) }} / {{ "%.1f"|format(primary_gpu_mem_total_gb) }} GB
+                  {% else %}
+                    Unknown
+                  {% endif %}
+                </strong>
+              </div>
+              <div class="meter small">
+                <div class="meter-fill {% if gpu_vram_percent >= 90 %}danger{% elif gpu_vram_percent >= 75 %}warning{% endif %}" style="width: {{ gpu_vram_percent if primary_gpu_mem_total is not none else 0 }}%"></div>
+              </div>
+            </div>
+
+            <div class="stat-box">
+              <span class="stat-label">CPU Temp</span>
+              <strong>{{ "%.1f °C"|format(machine.cpu_temp or 0) if machine.cpu_temp is not none else 'N/A' }}</strong>
+            </div>
+          </div>
+
+          <div class="card-footer">
+            <span>{{ machine.location or 'No location set' }}</span>
+            <span>Last seen {{ format_last_seen(machine.last_seen) }}</span>
+          </div>
+        </article>
+      </a>
+    {% else %}
+      <div class="empty-state">
+        <h3>No machines match the current filters.</h3>
+        <p>Adjust the filter bar or wait for the agent to check in.</p>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="detail-grid activity-grid">
+  <div class="panel">
+    <div class="panel-header split-header activity-header">
+      <div>
+        <h3>Recent Automation Events</h3>
+        <p>Latest scheduler, alert, and system activity.</p>
+      </div>
+      <span class="summary-chip">{{ recent_events|length }} shown</span>
+    </div>
+
+    <div class="activity-feed">
+      {% for row in recent_events %}
+        <article class="activity-feed-item">
+          <div class="activity-feed-rail">
+            <span class="activity-dot {{ row.severity_class }}"></span>
+          </div>
+
+          <div class="activity-feed-body">
+            <div class="activity-feed-top">
+              <div class="activity-feed-title-wrap">
+                <h4>{{ row.event_label }}</h4>
+                <div class="activity-feed-meta-line">
+                  <span>{{ row.machine_label }}</span>
+                  <span>•</span>
+                  <span>{{ row.time_ago }}</span>
+                </div>
+              </div>
+
+              <div class="activity-feed-pills">
+                <span class="status-pill {{ row.severity_class }}">{{ row.severity_label }}</span>
+                <span class="source-badge {{ row.source_kind }}">{{ row.source_label }}</span>
+              </div>
+            </div>
+
+            <div class="activity-feed-message">{{ row.message }}</div>
+
+            <div class="activity-feed-footer">
+              <span class="muted">Recorded: {{ row.time_label }}</span>
+            </div>
+          </div>
+        </article>
+      {% else %}
+        <div class="empty-state">
+          <p>No recent events yet.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header split-header activity-header">
+      <div>
+        <h3>Recent Commands</h3>
+        <p>Latest queued, approved, and completed actions.</p>
+      </div>
+      <span class="summary-chip">{{ recent_commands|length }} shown</span>
+    </div>
+
+    <div class="command-feed">
+      {% for row in recent_commands %}
+        <article class="command-feed-item">
+          <div class="command-feed-top">
+            <div>
+              <h4>{{ row.action_label }}</h4>
+              <div class="command-feed-meta-line">
+                <span>{{ row.machine_label }}</span>
+                <span>•</span>
+                <span>{{ row.time_ago }}</span>
+              </div>
+            </div>
+
+            <div class="command-feed-pills">
+              <span class="status-pill {{ row.status_class }}">{{ row.status_label }}</span>
+              <span class="source-badge {{ row.source_kind }}">{{ row.source_label }}</span>
+            </div>
+          </div>
+
+          <div class="command-feed-details">
+            <div class="command-detail-box">
+              <span class="stat-label">Requested By</span>
+              <strong>{{ row.requested_by_label }}</strong>
+            </div>
+            <div class="command-detail-box command-result-box">
+              <span class="stat-label">Result</span>
+              <strong>{{ row.result_preview }}</strong>
+            </div>
+          </div>
+
+          <div class="command-feed-footer">
+            <span class="muted">Created: {{ row.time_label }}</span>
+          </div>
+        </article>
+      {% else %}
+        <div class="empty-state">
+          <p>No commands yet.</p>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="table-note">
+      This panel helps verify whether commands were created manually or by automation during testing.
+    </div>
+  </div>
+</section>
+
+<style>
+.dashboard-hero{
+  margin-bottom:20px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:18px;
+  flex-wrap:wrap;
+}
+
+.dashboard-hero .page-title{
+  margin-bottom:6px;
+}
+
+.dashboard-hero-meta{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.dashboard-top-grid,
+.activity-grid{
+  align-items:start;
+}
+
+.health-summary-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));
+  gap:12px;
+}
+
+.health-box{
+  padding:14px;
+  border-radius:16px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.03);
+}
+
+.health-box strong{
+  display:block;
+  margin-top:6px;
+  font-size:24px;
+  font-weight:800;
+}
+
+.health-label{
+  color:var(--muted);
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+.health-subtext{
+  margin-top:4px;
+  color:#8ea5bc;
+  font-size:12px;
+}
+
+.health-healthy{ box-shadow:0 0 0 1px rgba(0,204,102,.16); }
+.health-warning{ box-shadow:0 0 0 1px rgba(251,191,36,.16); }
+.health-critical{ box-shadow:0 0 0 1px rgba(251,113,133,.16); }
+.health-offline{ box-shadow:0 0 0 1px rgba(139,155,184,.16); }
+
+.role-breakdown-list{
+  display:grid;
+  gap:10px;
+}
+
+.role-breakdown-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:rgba(255,255,255,.02);
+}
+
+.role-breakdown-main{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.role-breakdown-name{
+  font-weight:700;
+}
+
+.role-breakdown-percent{
+  color:#8ea5bc;
+  font-size:12px;
+}
+
+.role-breakdown-count{
+  display:inline-flex;
+  min-width:34px;
+  height:34px;
+  align-items:center;
+  justify-content:center;
+  padding:0 10px;
+  border-radius:999px;
+  background:rgba(0,204,102,.10);
+  border:1px solid rgba(0,204,102,.22);
+  color:#bbffd9;
+  font-weight:800;
+}
+
+.compact-empty{
+  padding:18px;
+}
+
+.incident-panel{
+  margin:4px 0 20px;
+  overflow:hidden;
+}
+
+.incident-header{
+  margin-bottom:16px;
+}
+
+.incident-grid{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:14px;
+}
+
+.incident-card{
+  min-width:0;
+  height:100%;
+  padding:16px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,0.07);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.02) 100%);
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  overflow:hidden;
+  position:relative;
+}
+
+.incident-card::before{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width:3px;
+  background:rgba(255,255,255,0.08);
+}
+
+.incident-card:hover{
+  transform:translateY(-3px);
+}
+
+.incident-card.critical{
+  box-shadow:0 10px 24px rgba(251,113,133,.10), 0 0 0 1px rgba(251,113,133,.28);
+}
+
+.incident-card.critical::before{
+  background:#fb7185;
+}
+
+.incident-card.warning{
+  box-shadow:0 10px 24px rgba(251,191,36,.10), 0 0 0 1px rgba(251,191,36,.24);
+}
+
+.incident-card.warning::before{
+  background:#fbbf24;
+}
+
+.incident-card.healthy{
+  box-shadow:0 10px 24px rgba(0,204,102,.08), 0 0 0 1px rgba(0,204,102,.20);
+}
+
+.incident-card.healthy::before{
+  background:#00cc66;
+}
+
+.incident-card.offline{
+  box-shadow:0 10px 24px rgba(139,155,184,.09), 0 0 0 1px rgba(139,155,184,.22);
+}
+
+.incident-card.offline::before{
+  background:#8b9bb8;
+}
+
+.incident-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+
+.incident-title-wrap{
+  min-width:0;
+  flex:1;
+}
+
+.incident-title{
+  min-width:0;
+  display:block;
+  line-height:1.2;
+  font-size:15px;
+  margin-bottom:6px;
+  word-break:break-word;
+}
+
+.incident-subline{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  color:#8ea5bc;
+  font-size:11px;
+  line-height:1.35;
+}
+
+.incident-metrics{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:8px;
+  margin-bottom:12px;
+}
+
+.incident-metric{
+  min-width:0;
+  padding:10px 10px 8px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,0.06);
+  background:rgba(255,255,255,0.03);
+}
+
+.incident-metric-label{
+  display:block;
+  margin-bottom:4px;
+  color:#8ea5bc;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.09em;
+}
+
+.incident-metric strong{
+  display:block;
+  font-size:14px;
+  line-height:1.2;
+}
+
+.incident-bottom{
+  margin-top:auto;
+  padding-top:10px;
+  border-top:1px solid rgba(255,255,255,0.05);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.incident-score{
+  font-size:12px;
+  color:#b9c9db;
+  font-weight:700;
+}
+
+.incident-alerts{
+  font-size:12px;
+  color:#fbbf24;
+  font-weight:700;
+}
+
+.machines-panel{
+  overflow:visible;
+}
+
+.dashboard-filter-bar{
+  margin:0 0 20px;
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:18px;
+  background:rgba(255,255,255,.02);
+}
+
+.dashboard-filter-grid{
+  display:grid;
+  grid-template-columns:minmax(260px, 2fr) repeat(2, minmax(180px, 1fr)) auto;
+  gap:14px;
+  align-items:end;
+}
+
+.field-search{
+  min-width:0;
+}
+
+.filter-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.filter-summary-row{
+  margin-top:12px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.machine-grid{
+  gap:20px;
+}
+
+.machine-grid > .card-link{
+  min-width:0;
+}
+
+.machine-health-row{
+  margin:14px 0 4px;
+  padding:12px 14px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(255,255,255,.02);
+}
+
+.machine-health-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:8px;
+}
+
+.machine-health-top strong{
+  font-size:16px;
+}
+
+.machine-health-flags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 14px;
+}
+
+.health-flag-pill{
+  font-size:11px;
+  padding:6px 10px;
+}
+
+.health-pill{
+  border:1px solid transparent;
+  white-space:nowrap;
+}
+
+.health-pill.health-healthy{
+  background:rgba(0,204,102,.12);
+  border-color:rgba(0,204,102,.24);
+  color:#bbffd9;
+}
+
+.health-pill.health-warning{
+  background:rgba(251,191,36,.14);
+  border-color:rgba(251,191,36,.26);
+  color:#ffe7ad;
+}
+
+.health-pill.health-critical{
+  background:rgba(251,113,133,.14);
+  border-color:rgba(251,113,133,.26);
+  color:#ffd7de;
+}
+
+.health-pill.health-offline{
+  background:rgba(139,155,184,.14);
+  border-color:rgba(139,155,184,.24);
+  color:#dbe7f5;
+}
+
+.dashboard-machine-card{
+  min-width:0;
+}
+
+.dashboard-machine-card .stats-grid{
+  grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.dashboard-machine-card .card-top{
+  gap:16px;
+}
+
+.dashboard-machine-card.machine-fresh{
+  box-shadow:0 0 0 1px rgba(0,204,102,.22), 0 12px 30px rgba(0,204,102,.10);
+}
+
+.dashboard-machine-card.machine-aging{
+  box-shadow:0 0 0 1px rgba(251,191,36,.22), 0 12px 30px rgba(251,191,36,.08);
+}
+
+.dashboard-machine-card.machine-stale{
+  box-shadow:0 0 0 1px rgba(251,113,133,.22), 0 12px 30px rgba(251,113,133,.08);
+}
+
+.dashboard-machine-card.machine-unknown{
+  box-shadow:0 0 0 1px rgba(139,155,184,.18), 0 12px 30px rgba(139,155,184,.06);
+}
+
+.card-title-wrap{
+  min-width:0;
+}
+
+.machine-activity-strip{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+  margin:0 0 14px;
+}
+
+.activity-mini-card{
+  min-width:0;
+  padding:13px 14px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.02);
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.activity-mini-head{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:8px;
+  min-width:0;
+}
+
+.activity-mini-pill-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  width:100%;
+}
+
+.mini-label{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  color:#8ea5bc;
+  font-weight:700;
+  line-height:1.2;
+}
+
+.activity-mini-stack{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  min-width:0;
+}
+
+.activity-mini-line{
+  font-size:12px;
+  color:#dce8f5;
+  line-height:1.35;
+}
+
+.activity-mini-time{
+  font-size:11px;
+  color:#8ea5bc;
+  line-height:1.3;
+}
+
+.gpu-summary-box{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.gpu-summary-wide{
+  grid-column:span 2;
+}
+
+.gpu-summary-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+
+.gpu-summary-name{
+  display:block;
+  line-height:1.3;
+  word-break:break-word;
+}
+
+.gpu-summary-meta{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.gpu-mini-text{
+  color:#8ea5bc;
+  font-size:0.78rem;
+}
+
+.gpu-vendor-pill{
+  background:rgba(0,204,102,0.12);
+  border:1px solid rgba(0,204,102,0.28);
+  color:#b8ffd7;
+}
+
+.source-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border-radius:999px;
+  padding:5px 9px;
+  font-size:0.68rem;
+  font-weight:700;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+  border:1px solid rgba(255,255,255,0.08);
+  background:rgba(255,255,255,0.05);
+  color:#d7e4f3;
+  white-space:nowrap;
+}
+
+.source-lhm{
+  background:rgba(0,204,102,0.10);
+  border-color:rgba(0,204,102,0.28);
+  color:#b8ffd7;
+}
+
+.source-wmi{
+  background:rgba(96,165,250,0.12);
+  border-color:rgba(96,165,250,0.26);
+  color:#cfe2ff;
+}
+
+.source-nvidia{
+  background:rgba(0,204,102,0.12);
+  border-color:rgba(0,204,102,0.30);
+  color:#b8ffd7;
+}
+
+.source-generic{
+  background:rgba(255,255,255,0.05);
+  border-color:rgba(255,255,255,0.08);
+  color:#d7e4f3;
+}
+
+.activity-header{
+  margin-bottom:14px;
+}
+
+.activity-feed,
+.command-feed{
+  display:grid;
+  gap:12px;
+}
+
+.activity-feed-item,
+.command-feed-item{
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(255,255,255,.02);
+}
+
+.activity-feed-item{
+  display:grid;
+  grid-template-columns:18px 1fr;
+  gap:12px;
+  padding:14px;
+}
+
+.activity-feed-rail{
+  display:flex;
+  justify-content:center;
+  padding-top:4px;
+}
+
+.activity-dot{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  display:inline-block;
+  background:#7f8ea3;
+  box-shadow:0 0 0 4px rgba(255,255,255,.03);
+}
+
+.activity-dot.pill-online{ background:#00cc66; }
+.activity-dot.pill-warning{ background:#fbbf24; }
+.activity-dot.pill-offline{ background:#fb7185; }
+.activity-dot.pill-info{ background:#60a5fa; }
+.activity-dot.pill-muted{ background:#7f8ea3; }
+
+.activity-feed-body{
+  min-width:0;
+}
+
+.activity-feed-top,
+.command-feed-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.activity-feed-title-wrap h4,
+.command-feed-top h4{
+  margin:0 0 6px;
+  font-size:15px;
+}
+
+.activity-feed-meta-line,
+.command-feed-meta-line{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  color:#8ea5bc;
+  font-size:12px;
+}
+
+.activity-feed-pills,
+.command-feed-pills{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:flex-end;
+}
+
+.activity-feed-message{
+  margin-top:10px;
+  color:#d9e6f5;
+  line-height:1.55;
+}
+
+.activity-feed-footer,
+.command-feed-footer{
+  margin-top:10px;
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  font-size:12px;
+}
+
+.command-feed-item{
+  padding:14px;
+}
+
+.command-feed-details{
+  margin-top:12px;
+  display:grid;
+  grid-template-columns:180px 1fr;
+  gap:12px;
+}
+
+.command-detail-box{
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.02);
+}
+
+.command-detail-box strong{
+  display:block;
+  margin-top:6px;
+  line-height:1.5;
+  font-size:13px;
+  color:#d9e6f5;
+}
+
+.command-result-box{
+  min-width:0;
+}
+
+@media (max-width: 1280px){
+  .incident-grid{
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px){
+  .dashboard-filter-grid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .filter-actions{
+    grid-column:1 / -1;
+  }
+}
+
+@media (max-width: 980px){
+  .gpu-summary-wide{
+    grid-column:span 1;
+  }
+
+  .command-feed-details,
+  .machine-activity-strip{
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width: 700px){
+  .dashboard-hero{
+    align-items:flex-start;
+  }
+
+  .gpu-summary-header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .dashboard-filter-grid,
+  .incident-grid{
+    grid-template-columns:1fr;
+  }
+
+  .activity-feed-item{
+    grid-template-columns:1fr;
+  }
+
+  .activity-feed-rail{
+    display:none;
+  }
+
+  .activity-feed-top,
+  .command-feed-top,
+  .incident-top{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .activity-feed-pills,
+  .command-feed-pills{
+    justify-content:flex-start;
+  }
+
+  .incident-metrics{
+    grid-template-columns:1fr;
+  }
+}
+</style>
+
+{% endblock %}

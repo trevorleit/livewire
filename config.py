@@ -1,0 +1,14 @@
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+API_KEY = "livewire-dev-key"
+OFFLINE_AFTER_SECONDS = 90
+DATABASE = os.path.join(BASE_DIR, "instance", "dashboard.db")
+REFRESH_SECONDS = 30
+MAX_RECENT_SNAPSHOTS = 60
+MAX_TOP_PROCESSES = 8
+
+CPU_ALERT_THRESHOLD = 90
+RAM_ALERT_THRESHOLD = 90
+DISK_ALERT_THRESHOLD = 90
+TEMP_ALERT_THRESHOLD = 85

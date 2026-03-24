@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% set total_alerts = alert_rows|length %}
+{% set open_alerts = alert_rows|selectattr("is_resolved", "equalto", false)|list|length %}
+{% set resolved_alerts = alert_rows|selectattr("is_resolved", "equalto", true)|list|length %}
+{% set critical_alerts = alert_rows|selectattr("severity", "equalto", "critical")|list|length %}
+{% set warning_alerts = alert_rows|selectattr("severity", "equalto", "warning")|list|length %}
+{% set info_alerts = alert_rows|selectattr("severity", "equalto", "info")|list|length %}
+{% set notification_total = alert_rows|sum(attribute='sent_notification_count') or 0 %}
+{% set remediation_total = alert_rows|sum(attribute='remediation_count') or 0 %}
+
+<div class="panel-header alerts-hero">
+    <div>
+        <div class="eyebrow">Operational Alerting</div>
+        <h2 class="page-title">Alerts</h2>
+        <p>Recent warning and critical conditions across LiveWire, including notification and remediation activity.</p>
+    </div>
+
+    <div class="alerts-hero-meta">
+        <span class="summary-chip">{{ total_alerts }} visible alerts</span>
+        <span class="summary-chip">{{ open_alerts }} open</span>
+        <span class="summary-chip">{{ critical_alerts }} critical</span>
+    </div>
+</div>
+
+{% if privacy_mode %}
+<section class="panel" style="margin-bottom:18px; border-color: rgba(251,191,36,.22); box-shadow:0 0 0 1px rgba(251,191,36,.08);">
+    <div class="panel-header" style="margin-bottom:0;">
+        <div>
+            <h3 style="margin-bottom:6px;">Privacy Mode Active</h3>
+            <p style="margin:0;">Sensitive machine identifiers are masked in the alert feed for safer screenshots, demos, and recordings.</p>
+        </div>
+        <span class="status-pill pill-warning">Masked View</span>
+    </div>
+</section>
+{% endif %}
+
+<section class="summary-grid alerts-summary-grid">
+    <div class="summary-card {{ 'status-danger' if open_alerts > 0 else 'status-good' }}">
+        <div class="summary-card-inner">
+            <div class="summary-top">
+                <div>
+                    <div class="summary-kicker">Open Alerts</div>
+                    <div class="summary-value">{{ open_alerts }}</div>
+                </div>
+                <div class="summary-trend {{ 'danger' if open_alerts > 0 else 'good' }}">
+                    {{ '!' if open_alerts > 0 else '✓' }}
+                </div>
+            </div>
+            <div class="summary-subtext">Active alert conditions that may require immediate review.</div>
+            <div class="summary-meta">
+                <span class="summary-chip">{{ resolved_alerts }} resolved</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="summary-card {{ 'status-danger' if critical_alerts > 0 else 'status-warn' }}">
+        <div class="summary-card-inner">
+            <div class="summary-top">
+                <div>
+                    <div class="summary-kicker">Critical Alerts</div>
+                    <div class="summary-value">{{ critical_alerts }}</div>
+                </div>
+                <div class="summary-trend {{ 'danger' if critical_alerts > 0 else 'warn' }}">
+                    {{ '!' if critical_alerts > 0 else '•' }}
+                </div>
+            </div>
+            <div class="summary-subtext">Highest-severity alerts in the visible alert feed.</div>
+            <div class="summary-meta">
+                <span class="summary-chip">{{ warning_alerts }} warning</span>
+                <span class="summary-chip">{{ info_alerts }} info</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="summary-card status-warn">
+        <div class="summary-card-inner">
+            <div class="summary-top">
+                <div>
+                    <div class="summary-kicker">Notifications Sent</div>
+                    <div class="summary-value">{{ notification_total }}</div>
+                </div>
+                <div class="summary-trend warn">↗</div>
+            </div>
+            <div class="summary-subtext">Notification deliveries recorded for the visible alerts.</div>
+            <div class="summary-meta">
+                <span class="summary-chip">Delivery activity</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="summary-card status-good">
+        <div class="summary-card-inner">
+            <div class="summary-top">
+                <div>
+                    <div class="summary-kicker">Remediation Runs</div>
+                    <div class="summary-value">{{ remediation_total }}</div>
+                </div>
+                <div class="summary-trend good">↻</div>
+            </div>
+            <div class="summary-subtext">Queued remediation activity associated with visible alerts.</div>
+            <div class="summary-meta">
+                <span class="summary-chip">Automation linked</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="panel alerts-panel">
+    <div class="panel-header split-header alerts-panel-header">
+        <div>
+            <h3>Alert Feed</h3>
+            <p>Review current and historical alert activity across the fleet.</p>
+        </div>
+        <span class="summary-chip">{{ total_alerts }} rows</span>
+    </div>
+
+    <form method="get" class="alerts-filter-bar">
+        <div class="alerts-filter-grid">
+            <label class="field alerts-field-search">
+                <span>Search</span>
+                <input
+                    type="text"
+                    name="q"
+                    value="{{ search_text or '' }}"
+                    placeholder="{% if privacy_mode %}Masked search active{% else %}Search message, type, machine{% endif %}"
+                >
+            </label>
+
+            <label class="field">
+                <span>Status</span>
+                <select name="status">
+                    <option value="all" {% if (status_filter or 'all') == 'all' %}selected{% endif %}>All</option>
+                    <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Open</option>
+                    <option value="resolved" {% if status_filter == 'resolved' %}selected{% endif %}>Resolved</option>
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Severity</span>
+                <select name="severity">
+                    <option value="all" {% if (severity_filter or 'all') == 'all' %}selected{% endif %}>All</option>
+                    <option value="critical" {% if severity_filter == 'critical' %}selected{% endif %}>Critical</option>
+                    <option value="warning" {% if severity_filter == 'warning' %}selected{% endif %}>Warning</option>
+                    <option value="info" {% if severity_filter == 'info' %}selected{% endif %}>Info</option>
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Machine</span>
+                <select name="machine">
+                    <option value="" {% if not machine_filter %}selected{% endif %}>All Machines</option>
+                    {% for machine_name in machine_options %}
+                        <option value="{{ machine_name }}" {% if machine_filter == machine_name %}selected{% endif %}>
+                            {{ mask_host(machine_name) if privacy_mode else machine_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Type</span>
+                <select name="type">
+                    <option value="" {% if not type_filter %}selected{% endif %}>All Types</option>
+                    {% for alert_type in type_options %}
+                        <option value="{{ alert_type }}" {% if type_filter == alert_type %}selected{% endif %}>{{ alert_type }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <div class="alerts-filter-actions">
+                <button type="submit" class="button-primary">Apply Filters</button>
+                <a class="button-secondary button-link" href="{{ url_for('alerts.alerts') }}">Reset</a>
+            </div>
+        </div>
+
+        <div class="alerts-filter-summary">
+            <span class="summary-chip">{{ total_alerts }} visible</span>
+            {% if search_text %}
+                <span class="summary-chip">Search: {{ search_text }}</span>
+            {% endif %}
+            {% if status_filter and status_filter != 'all' %}
+                <span class="summary-chip">Status: {{ status_filter|title }}</span>
+            {% endif %}
+            {% if severity_filter and severity_filter != 'all' %}
+                <span class="summary-chip">Severity: {{ severity_filter|title }}</span>
+            {% endif %}
+            {% if machine_filter %}
+                <span class="summary-chip">
+                    Machine: {{ mask_host(machine_filter) if privacy_mode else machine_filter }}
+                </span>
+            {% endif %}
+            {% if type_filter %}
+                <span class="summary-chip">Type: {{ type_filter }}</span>
+            {% endif %}
+        </div>
+    </form>
+
+    <div class="alerts-toolbar">
+        <div class="alerts-toolbar-note">
+            Open alerts are pinned first, followed by the most recently recorded activity.
+        </div>
+    </div>
+
+    <div class="alerts-table-wrap">
+        <table class="alerts-table">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Severity</th>
+                    <th>Machine</th>
+                    <th>Type</th>
+                    <th>Message</th>
+                    <th>Notifications</th>
+                    <th>Remediation</th>
+                    <th>Recorded</th>
+                    <th>Resolved</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in alert_rows %}
+                <tr class="{{ 'alert-row-open' if not row.is_resolved else 'alert-row-resolved' }}">
+                    <td>
+                        {% if row.is_resolved %}
+                            <span class="status-pill pill-muted">Resolved</span>
+                        {% else %}
+                            <span class="status-pill pill-warning">Open</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if row.severity == 'critical' %}
+                            <span class="status-pill pill-offline">Critical</span>
+                        {% elif row.severity == 'info' %}
+                            <span class="status-pill pill-online">Info</span>
+                        {% else %}
+                            <span class="status-pill pill-warning">Warning</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="alerts-machine-cell">
+                        <div class="alerts-machine-name">
+                            {{ mask_host(row.machine_label) if privacy_mode else (row.machine_label or 'Unknown Machine') }}
+                        </div>
+                    </td>
+
+                    <td>
+                        <code class="alerts-type-code">{{ row.alert_type }}</code>
+                    </td>
+
+                    <td class="alerts-message-cell">
+                        <div class="alerts-message">{{ row.message }}</div>
+                    </td>
+
+                    <td>
+                        <span class="alerts-count-pill">{{ row.sent_notification_count or 0 }}</span>
+                    </td>
+
+                    <td>
+                        <span class="alerts-count-pill">{{ row.remediation_count or 0 }}</span>
+                    </td>
+
+                    <td class="alerts-time-cell">
+                        <div class="alerts-time">{{ row.recorded_at }}</div>
+                    </td>
+
+                    <td class="alerts-time-cell">
+                        <div class="alerts-time">{{ row.resolved_at or '—' }}</div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9">
+                        <div class="empty-state alerts-empty">
+                            <h3>No alerts match the current filters.</h3>
+                            <p>Try broadening the filter bar or wait for new alert activity to be recorded.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<style>
+.alerts-hero{
+  margin-bottom:18px;
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+}
+
+.alerts-hero .page-title{
+  margin-bottom:6px;
+}
+
+.alerts-hero-meta{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.alerts-summary-grid{
+  margin-bottom:18px;
+}
+
+.alerts-panel{
+  overflow:hidden;
+}
+
+.alerts-panel-header{
+  margin-bottom:14px;
+}
+
+.button-primary{
+  box-shadow:0 0 12px rgba(0,204,102,.25);
+}
+
+.button-primary:hover{
+  box-shadow:0 0 18px rgba(0,204,102,.45);
+}
+
+.alerts-filter-bar{
+  margin:0 0 14px;
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:18px;
+  backdrop-filter:blur(6px);
+  background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+}
+
+.alerts-filter-grid{
+  display:grid;
+  grid-template-columns:minmax(240px, 2fr) repeat(4, minmax(150px, 1fr)) auto;
+  gap:14px;
+  align-items:end;
+}
+
+.alerts-field-search{
+  min-width:0;
+}
+
+.alerts-filter-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.alerts-filter-summary{
+  margin-top:12px;
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.alerts-toolbar{
+  margin-bottom:14px;
+  padding:12px 14px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:rgba(255,255,255,.02);
+}
+
+.alerts-toolbar-note{
+  color:#9fb5ca;
+  font-size:13px;
+  line-height:1.45;
+}
+
+.alerts-table-wrap{
+  width:100%;
+  overflow-x:auto;
+  border:1px solid var(--border);
+  border-radius:18px;
+  background:rgba(255,255,255,.02);
+}
+
+.alerts-table{
+  width:100%;
+  min-width:1120px;
+  border-collapse:collapse;
+}
+
+.alerts-table thead{
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+
+.alerts-table thead th{
+  padding:14px 14px;
+  font-size:11px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:#8ea5bc;
+  text-align:left;
+  background:rgba(255,255,255,.03);
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+
+.alerts-table tbody td{
+  padding:16px 14px;
+  vertical-align:top;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+
+.alerts-table tbody tr:last-child td{
+  border-bottom:none;
+}
+
+.alerts-table tbody tr{
+  transition:background .18s ease, box-shadow .18s ease;
+}
+
+.alerts-table tbody tr:hover{
+  background:rgba(0,204,102,.06);
+  box-shadow:inset 0 0 0 1px rgba(0,204,102,.15);
+}
+
+.alert-row-open td:first-child{
+  box-shadow:inset 3px 0 0 rgba(251,191,36,.65);
+}
+
+.alert-row-open{
+  background:linear-gradient(90deg, rgba(251,191,36,.08) 0%, rgba(255,255,255,0) 35%);
+}
+
+.alert-row-resolved{
+  background:transparent;
+}
+
+.alerts-machine-cell{
+  min-width:130px;
+}
+
+.alerts-machine-name{
+  font-weight:700;
+  line-height:1.35;
+}
+
+.alerts-type-code{
+  display:inline-flex;
+  align-items:center;
+  padding:4px 8px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  color:#dbe7f5;
+  font-size:12px;
+  white-space:nowrap;
+}
+
+.alerts-message-cell{
+  min-width:340px;
+  max-width:520px;
+}
+
+.alerts-message{
+  color:#e6f0ff;
+  line-height:1.55;
+  font-size:13px;
+  letter-spacing:.2px;
+  word-break:break-word;
+}
+
+.alerts-count-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:30px;
+  height:30px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  color:#eaf2fb;
+  font-weight:800;
+  font-size:12px;
+}
+
+.alerts-time-cell{
+  min-width:118px;
+}
+
+.alerts-time{
+  color:#cfe0f4;
+  font-size:12px;
+  line-height:1.35;
+  opacity:.85;
+}
+
+.alerts-empty{
+  padding:30px;
+  text-align:center;
+}
+
+@media (max-width: 1280px){
+  .alerts-filter-grid{
+    grid-template-columns:1fr 1fr 1fr;
+  }
+
+  .alerts-filter-actions{
+    grid-column:1 / -1;
+  }
+}
+
+@media (max-width: 800px){
+  .alerts-hero{
+    align-items:flex-start;
+  }
+
+  .alerts-filter-grid{
+    grid-template-columns:1fr;
+  }
+}
+</style>
+
+{% endblock %}

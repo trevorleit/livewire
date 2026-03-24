@@ -1,0 +1,1594 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="panel automation-shell">
+  <div class="panel-header automation-header">
+    <div>
+      <div class="eyebrow">Automation & Scheduling</div>
+      <h2>Automation</h2>
+      <p>Create groups, assign machines, and schedule recurring actions with a cleaner operator workflow.</p>
+    </div>
+
+    <div class="automation-header-badges">
+      <span class="status-pill pill-muted" id="header-groups">{{ summary.groups }} group{{ '' if summary.groups == 1 else 's' }}</span>
+      <span class="status-pill pill-info" id="header-jobs">{{ summary.jobs_total }} job{{ '' if summary.jobs_total == 1 else 's' }}</span>
+      <span class="status-pill pill-online" id="header-runs">{{ summary.recent_runs }} recent run{{ '' if summary.recent_runs == 1 else 's' }}</span>
+      <span class="status-pill pill-offline" id="header-overdue">{{ summary.overdue_jobs }} overdue</span>
+      <span class="status-pill pill-muted" id="header-unscheduled">{{ summary.no_schedule_jobs }} unscheduled</span>
+    </div>
+  </div>
+
+  <section class="summary-grid automation-summary-grid">
+    <div class="summary-card status-good">
+      <div class="summary-card-inner">
+        <div class="summary-top">
+          <div>
+            <div class="summary-kicker">Groups</div>
+            <div class="summary-value" id="summary-groups">{{ summary.groups }}</div>
+          </div>
+          <div class="summary-trend good">▣</div>
+        </div>
+        <div class="summary-subtext">Organized target collections for scheduling and response.</div>
+        <div class="summary-meta">
+          <span class="summary-chip" id="summary-group-members">{{ summary.group_members }} member{{ '' if summary.group_members == 1 else 's' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-card {{ 'status-good' if summary.jobs_enabled > 0 else 'status-warn' }}">
+      <div class="summary-card-inner">
+        <div class="summary-top">
+          <div>
+            <div class="summary-kicker">Enabled Jobs</div>
+            <div class="summary-value" id="summary-enabled">{{ summary.jobs_enabled }}</div>
+          </div>
+          <div class="summary-trend {{ 'good' if summary.jobs_enabled > 0 else 'warn' }}">↻</div>
+        </div>
+        <div class="summary-subtext">Jobs currently eligible for scheduler execution.</div>
+        <div class="summary-meta">
+          <span class="summary-chip" id="summary-disabled">{{ summary.jobs_disabled }} disabled</span>
+          <span class="summary-chip" id="summary-overdue">{{ summary.overdue_jobs }} overdue</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-card status-warn">
+      <div class="summary-card-inner">
+        <div class="summary-top">
+          <div>
+            <div class="summary-kicker">Visible Jobs</div>
+            <div class="summary-value">{{ summary.jobs_visible }}</div>
+          </div>
+          <div class="summary-trend warn">⌕</div>
+        </div>
+        <div class="summary-subtext">Jobs visible after the current filter set is applied.</div>
+        <div class="summary-meta">
+          <span class="summary-chip">{{ summary.jobs_total }} total</span>
+          <span class="summary-chip" id="summary-unscheduled">{{ summary.no_schedule_jobs }} unscheduled</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-card {{ 'status-danger' if summary.recent_failed_runs > 0 else 'status-good' }}">
+      <div class="summary-card-inner">
+        <div class="summary-top">
+          <div>
+            <div class="summary-kicker">Recent Runs</div>
+            <div class="summary-value" id="summary-runs">{{ summary.recent_runs }}</div>
+          </div>
+          <div class="summary-trend {{ 'danger' if summary.recent_failed_runs > 0 else 'good' }}">
+            {{ '!' if summary.recent_failed_runs > 0 else '✓' }}
+          </div>
+        </div>
+        <div class="summary-subtext">Execution records available for scheduler QA and troubleshooting.</div>
+        <div class="summary-meta">
+          <span class="summary-chip" id="summary-run-success">{{ summary.recent_success_runs }} successful</span>
+          <span class="summary-chip" id="summary-run-failed">{{ summary.recent_failed_runs }} failed</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="automation-top-grid">
+    <article class="automation-card">
+      <div class="panel-header">
+        <h3>Create Group</h3>
+        <p>Organize machines by role, room, customer, or purpose.</p>
+      </div>
+
+      <form method="post">
+        <input type="hidden" name="form_type" value="create_group">
+
+        <div class="settings-grid">
+          <label class="field">
+            <span>Group name</span>
+            <input type="text" name="group_name" placeholder="GPU Nodes" required>
+            <small class="helper-text">Use a short, human-friendly name for operators.</small>
+          </label>
+
+          <label class="field">
+            <span>Description</span>
+            <input type="text" name="description" placeholder="Rendering and AI workstations">
+          </label>
+
+          <label class="field">
+            <span>Color hex</span>
+            <input type="text" name="color_hex" value="#00cc66" placeholder="#00cc66">
+            <small class="helper-text">Used for quick visual identification later.</small>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button-primary">Create Group</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="automation-card">
+      <div class="panel-header">
+        <h3>Add Machine to Group</h3>
+        <p>Quick membership management without leaving the page.</p>
+      </div>
+
+      <form method="post">
+        <input type="hidden" name="form_type" value="add_group_member">
+
+        <div class="settings-grid">
+          <label class="field">
+            <span>Group</span>
+            <select name="group_id" required>
+              {% for g in groups %}
+                <option value="{{ g.id }}">{{ g.group_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Machine</span>
+            <select name="machine_id" required>
+              {% for machine in machines %}
+                <option value="{{ machine.id }}">{{ machine.display_name or machine.hostname }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button-secondary">Add Member</button>
+        </div>
+      </form>
+    </article>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header split-header">
+    <div>
+      <h3>Current Groups</h3>
+      <p>Review memberships, edit group metadata, and remove machines when needed.</p>
+    </div>
+    <span class="summary-chip">{{ groups|length }} groups</span>
+  </div>
+
+  {% if groups %}
+    <div class="group-stack">
+      {% for g in groups %}
+      <div class="group-card">
+        <div class="group-card-top">
+          <div>
+            <div class="group-title-row">
+              <h4>{{ g.group_name }}</h4>
+              {% if g.color_hex %}
+                <span class="group-color-indicator" style="background: {{ g.color_hex }};"></span>
+              {% endif %}
+              <span class="status-pill pill-muted">{{ g.members|length }} member{{ '' if g.members|length == 1 else 's' }}</span>
+            </div>
+
+            {% if g.description %}
+              <div class="muted">{{ g.description }}</div>
+            {% endif %}
+          </div>
+
+          <div class="group-actions-inline">
+            <button
+              type="button"
+              class="button-secondary small-button group-edit-trigger"
+              data-group-id="{{ g.id }}"
+              data-group-name="{{ g.group_name }}"
+              data-group-description="{{ g.description or '' }}"
+              data-group-color="{{ g.color_hex or '#00cc66' }}"
+            >
+              Edit
+            </button>
+
+            <form method="post" onsubmit="return confirm('Delete this group and all of its memberships?');">
+              <input type="hidden" name="form_type" value="delete_group">
+              <input type="hidden" name="group_id" value="{{ g.id }}">
+              <button class="button-secondary small-button" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="group-members-row">
+          {% for m in g.members %}
+            <div class="group-member-chip">
+              <span class="list-chip">{{ m.display_name or m.hostname }}</span>
+              <span class="status-pill {{ 'pill-online' if m.is_online else 'pill-offline' }}">
+                {{ 'Online' if m.is_online else 'Offline' }}
+              </span>
+              {% if m.machine_role %}
+                <span class="status-pill pill-muted">{{ m.machine_role }}</span>
+              {% endif %}
+              <form method="post">
+                <input type="hidden" name="form_type" value="remove_group_member">
+                <input type="hidden" name="group_id" value="{{ g.id }}">
+                <input type="hidden" name="machine_id" value="{{ m.id }}">
+                <button class="button-secondary small-button" type="submit">Remove</button>
+              </form>
+            </div>
+          {% else %}
+            <span class="muted">No members yet.</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h3>No groups created yet.</h3>
+      <p>Create your first group to organize machines for targeting and scheduling.</p>
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h3>Create Scheduled Job</h3>
+    <p>Queue recurring commands with online-awareness and approval rules.</p>
+  </div>
+
+  <form method="post" class="compact-form">
+    <input type="hidden" name="form_type" value="create_job">
+
+    <div class="job-builder-grid">
+      <div class="job-builder-main">
+        <div class="settings-grid">
+          <label class="field">
+            <span>Job name</span>
+            <input type="text" name="job_name" placeholder="Restart Apache every 4 hours" required>
+          </label>
+
+          <label class="field">
+            <span>Description</span>
+            <input type="text" name="description" placeholder="Keep the web stack responsive">
+          </label>
+
+          <label class="field">
+            <span>Target type</span>
+            <select name="target_type" id="target_type" required>
+              <option value="machine">Machine</option>
+              <option value="group">Group</option>
+            </select>
+          </label>
+
+          <label class="field target-field" id="machine_target_field">
+            <span>Machine Target</span>
+            <select name="machine_target_id">
+              <option value="">Select a machine</option>
+              {% for machine in machines %}
+                <option value="{{ machine.id }}">{{ machine.display_name or machine.hostname }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field target-field" id="group_target_field" style="display:none;">
+            <span>Group Target</span>
+            <select name="group_target_id">
+              <option value="">Select a group</option>
+              {% for g in groups %}
+                <option value="{{ g.id }}">{{ g.group_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Action</span>
+            <select name="action_type" id="action_type" required>
+              <option value="restart_service">Restart service</option>
+              <option value="stop_process">Stop process</option>
+              <option value="reboot_machine">Reboot machine</option>
+            </select>
+          </label>
+
+          <label class="field action-field" id="service_name_field">
+            <span>Service name</span>
+            <input type="text" name="service_name" placeholder="Apache or MySQL">
+          </label>
+
+          <label class="field action-field" id="pid_field" style="display:none;">
+            <span>PID</span>
+            <input type="number" name="pid" placeholder="1234">
+          </label>
+
+          <label class="field action-field" id="delay_seconds_field" style="display:none;">
+            <span>Reboot delay (seconds)</span>
+            <input type="number" name="delay_seconds" value="5" min="0">
+          </label>
+
+          <label class="field">
+            <span>Interval (minutes)</span>
+            <input type="number" name="interval_minutes" value="60" min="1" required>
+            <small class="helper-text">How often the scheduler should attempt the job.</small>
+          </label>
+
+          <label class="checkbox-field checkbox-panel">
+            <input type="checkbox" name="auto_approve">
+            <div>
+              <strong>Auto-approve commands</strong>
+              <small class="helper-text">Automatically queue commands without waiting for operator approval.</small>
+            </div>
+          </label>
+
+          <label class="checkbox-field checkbox-panel">
+            <input type="checkbox" name="only_when_online" checked>
+            <div>
+              <strong>Only run when machine is online</strong>
+              <small class="helper-text">Skips execution when a target is offline during the scheduler tick.</small>
+            </div>
+          </label>
+        </div>
+
+        <div class="helper-text automation-helper-note">
+          Pick a target type first. The matching target selector will appear automatically. Action-specific input fields also change dynamically.
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button-primary">Create Scheduled Job</button>
+        </div>
+      </div>
+
+      <aside class="job-builder-side">
+        <div class="automation-side-card">
+          <h3>Operator Notes</h3>
+          <div class="automation-side-list">
+            <div class="automation-side-item">
+              <strong>Machine target</strong>
+              <span>Best for surgical actions on one host.</span>
+            </div>
+            <div class="automation-side-item">
+              <strong>Group target</strong>
+              <span>Best for maintenance windows and repeated workflows.</span>
+            </div>
+            <div class="automation-side-item">
+              <strong>Auto-approve</strong>
+              <span>Useful for safe, repeatable jobs you already trust.</span>
+            </div>
+            <div class="automation-side-item">
+              <strong>Online only</strong>
+              <span>Recommended for recurring operational tasks.</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="split-header panel-header">
+    <div>
+      <h3>Scheduled Jobs</h3>
+      <p>Recurring tasks with manual run, edit, inspect, and enable controls.</p>
+    </div>
+
+    <form method="post">
+      <input type="hidden" name="form_type" value="tick_scheduler">
+      <button class="button-secondary" type="submit">Run Scheduler Tick</button>
+    </form>
+  </div>
+
+  <form method="get" class="automation-filter-bar">
+    <div class="automation-filter-grid">
+      <label class="field automation-search-field">
+        <span>Search</span>
+        <input type="text" name="q" value="{{ search_text or '' }}" placeholder="Job name, target, description, action">
+      </label>
+
+      <label class="field">
+        <span>Status</span>
+        <select name="status">
+          <option value="all" {% if (status_filter or 'all') == 'all' %}selected{% endif %}>All</option>
+          <option value="enabled" {% if status_filter == 'enabled' %}selected{% endif %}>Enabled</option>
+          <option value="disabled" {% if status_filter == 'disabled' %}selected{% endif %}>Disabled</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Target Type</span>
+        <select name="target_type">
+          <option value="all" {% if (target_filter or 'all') == 'all' %}selected{% endif %}>All</option>
+          <option value="machine" {% if target_filter == 'machine' %}selected{% endif %}>Machine</option>
+          <option value="group" {% if target_filter == 'group' %}selected{% endif %}>Group</option>
+        </select>
+      </label>
+
+      <div class="filter-actions">
+        <button class="button-primary" type="submit">Apply Filters</button>
+        <a class="button-secondary button-link" href="{{ url_for('automation.automation') }}">Reset</a>
+      </div>
+    </div>
+
+    <div class="filter-summary-row">
+      <span class="summary-chip">{{ summary.jobs_visible }} shown</span>
+      {% if summary.jobs_visible != summary.jobs_total %}
+        <span class="summary-chip">{{ summary.jobs_total }} total</span>
+      {% endif %}
+      {% if search_text %}
+        <span class="summary-chip">Search: {{ search_text }}</span>
+      {% endif %}
+      {% if status_filter != 'all' %}
+        <span class="summary-chip">Status: {{ status_filter|title }}</span>
+      {% endif %}
+      {% if target_filter != 'all' %}
+        <span class="summary-chip">Target: {{ target_filter|title }}</span>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if jobs %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Target</th>
+            <th>Action</th>
+            <th>Interval</th>
+            <th>Next Run</th>
+            <th>Status</th>
+            <th>Controls</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for j in jobs %}
+            {% set action_label =
+              "Restart Service" if j.action_type == "restart_service"
+              else "Stop Process" if j.action_type == "stop_process"
+              else "Reboot Machine" if j.action_type == "reboot_machine"
+              else (j.action_type or "Unknown")
+            %}
+            <tr class="{% if j.is_overdue %}row-overdue{% endif %}">
+              <td>
+                <div class="job-title">{{ j.job_name or ("Job #" ~ j.id) }}</div>
+                {% if j.description %}
+                  <div class="job-desc">{{ j.description }}</div>
+                {% endif %}
+
+                <div class="job-meta">
+                  {% if j.auto_approve %}
+                    <span class="status-pill pill-info">Auto Approve</span>
+                  {% endif %}
+                  {% if j.only_when_online %}
+                    <span class="status-pill pill-outline">Online Only</span>
+                  {% endif %}
+                </div>
+              </td>
+
+              <td>
+                <div class="job-target">{{ j.target_label }}</div>
+              </td>
+
+              <td>
+                <span class="job-action">{{ action_label }}</span>
+              </td>
+
+              <td class="cell-compact">
+                {{ j.interval_minutes }} min
+              </td>
+
+              <td>
+                <div class="next-run">
+                  {% if j.next_run_at %}
+                    <span class="{% if j.is_overdue %}text-danger{% elif j.enabled %}text-accent{% else %}muted{% endif %}">
+                      {{ j.next_run_at }}
+                    </span>
+                  {% else %}
+                    <span class="muted">Not scheduled</span>
+                  {% endif %}
+                  <small>
+                    {% if j.is_overdue %}
+                      Overdue for execution
+                    {% elif j.enabled %}
+                      Waiting for next eligible tick
+                    {% else %}
+                      Disabled jobs do not run
+                    {% endif %}
+                  </small>
+                </div>
+              </td>
+
+              <td>
+                <div class="inline-badges">
+                  {% if j.enabled %}
+                    <span class="status-pill pill-online">Enabled</span>
+                  {% else %}
+                    <span class="status-pill pill-muted">Disabled</span>
+                  {% endif %}
+                </div>
+              </td>
+
+              <td>
+                <div class="controls-stack">
+                  <button
+                    type="button"
+                    class="button-secondary small-button job-details-trigger"
+                    data-job-id="{{ j.id }}"
+                    data-job-name="{{ j.job_name or ('Job #' ~ j.id) }}"
+                    data-job-description="{{ j.description or '' }}"
+                    data-job-target-type="{{ j.target_type or '' }}"
+                    data-job-target-id="{{ j.target_id }}"
+                    data-job-target-label="{{ j.target_label }}"
+                    data-job-action="{{ j.action_type or '' }}"
+                    data-job-payload="{{ j.action_payload_json or '{}' }}"
+                    data-job-interval="{{ j.interval_minutes }}"
+                    data-job-next-run="{{ j.next_run_at or '' }}"
+                    data-job-enabled="{{ 1 if j.enabled else 0 }}"
+                    data-job-auto-approve="{{ 1 if j.auto_approve else 0 }}"
+                    data-job-only-online="{{ 1 if j.only_when_online else 0 }}"
+                  >
+                    Details
+                  </button>
+
+                  <form method="post">
+                    <input type="hidden" name="form_type" value="run_job_now">
+                    <input type="hidden" name="job_id" value="{{ j.id }}">
+                    <button class="button-secondary small-button" type="submit">Run</button>
+                  </form>
+
+                  <button
+                    type="button"
+                    class="button-secondary small-button job-edit-trigger"
+                    data-job-id="{{ j.id }}"
+                    data-job-name="{{ j.job_name or '' }}"
+                    data-job-description="{{ j.description or '' }}"
+                    data-job-target-type="{{ j.target_type or 'machine' }}"
+                    data-job-machine-target-id="{{ j.target_id if j.target_type == 'machine' else '' }}"
+                    data-job-group-target-id="{{ j.target_id if j.target_type == 'group' else '' }}"
+                    data-job-action="{{ j.action_type or '' }}"
+                    data-job-payload="{{ j.action_payload_json or '{}' }}"
+                    data-job-interval="{{ j.interval_minutes }}"
+                    data-job-auto-approve="{{ 1 if j.auto_approve else 0 }}"
+                    data-job-only-online="{{ 1 if j.only_when_online else 0 }}"
+                  >
+                    Edit
+                  </button>
+
+                  <form method="post">
+                    <input type="hidden" name="form_type" value="toggle_job">
+                    <input type="hidden" name="job_id" value="{{ j.id }}">
+                    <input type="hidden" name="enabled" value="{% if j.enabled %}0{% else %}1{% endif %}">
+                    <button class="button-secondary small-button" type="submit">
+                      {% if j.enabled %}Disable{% else %}Enable{% endif %}
+                    </button>
+                  </form>
+
+                  <form method="post">
+                    <input type="hidden" name="form_type" value="duplicate_job">
+                    <input type="hidden" name="job_id" value="{{ j.id }}">
+                    <button class="button-secondary small-button" type="submit">Duplicate</button>
+                  </form>
+
+                  <form method="post" onsubmit="return confirm('Delete this scheduled job and its run history?');">
+                    <input type="hidden" name="form_type" value="delete_job">
+                    <input type="hidden" name="job_id" value="{{ j.id }}">
+                    <button class="button-secondary small-button" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h3>No jobs match the current filters.</h3>
+      <p>Adjust the filters or create a new scheduled job.</p>
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h3>Recent Scheduler Runs</h3>
+    <p>Latest execution records for troubleshooting and QA.</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Job</th>
+          <th>Status</th>
+          <th>Summary</th>
+          <th>Recorded</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in recent_runs %}
+          {% set run_status = (row.status or '')|lower %}
+          <tr>
+            <td>
+              <strong>{{ row.job_name if row.job_name else ("Job #" ~ row.job_id) }}</strong>
+            </td>
+            <td class="status-cell">
+              {% if run_status in ["completed", "success", "queued"] %}
+                <span class="status-pill pill-online">{{ row.status }}</span>
+              {% elif run_status in ["skipped", "partial"] %}
+                <span class="status-pill pill-warning">{{ row.status }}</span>
+              {% elif run_status in ["running", "in_progress"] %}
+                <span class="status-pill pill-info">{{ row.status }}</span>
+              {% elif run_status in ["failed", "error"] %}
+                <span class="status-pill pill-offline">{{ row.status }}</span>
+              {% else %}
+                <span class="status-pill pill-muted">{{ row.status or "unknown" }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="run-summary mono">{{ row.summary_text or "No summary recorded." }}</div>
+            </td>
+            <td>{{ row.created_at or "—" }}</td>
+            <td>
+              <button
+                type="button"
+                class="button-secondary small-button run-details-trigger"
+                data-run-job="{{ row.job_name if row.job_name else ('Job #' ~ row.job_id) }}"
+                data-run-status="{{ row.status or 'unknown' }}"
+                data-run-summary="{{ row.summary_text or 'No summary recorded.' }}"
+                data-run-recorded="{{ row.created_at or '—' }}"
+              >
+                Details
+              </button>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5">No scheduler runs yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="group-modal-backdrop" id="group-modal-backdrop" hidden>
+  <div class="group-modal" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
+    <div class="group-modal-header">
+      <div>
+        <div class="eyebrow">Edit Group</div>
+        <h3 id="group-modal-title">Update Group</h3>
+      </div>
+      <button type="button" class="modal-close-button" id="group-modal-close" aria-label="Close">×</button>
+    </div>
+
+    <div class="group-modal-body">
+      <form method="post">
+        <input type="hidden" name="form_type" value="edit_group">
+        <input type="hidden" name="group_id" id="edit_group_id">
+
+        <div class="settings-grid">
+          <label class="field">
+            <span>Group name</span>
+            <input type="text" name="group_name" id="edit_group_name" required>
+          </label>
+
+          <label class="field">
+            <span>Description</span>
+            <input type="text" name="description" id="edit_group_description">
+          </label>
+
+          <label class="field">
+            <span>Color hex</span>
+            <input type="text" name="color_hex" id="edit_group_color" required>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button-primary">Save Changes</button>
+          <button type="button" class="button-secondary" id="group-modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="group-modal-backdrop" id="job-modal-backdrop" hidden>
+  <div class="group-modal" role="dialog" aria-modal="true" aria-labelledby="job-modal-title">
+    <div class="group-modal-header">
+      <div>
+        <div class="eyebrow">Edit Scheduled Job</div>
+        <h3 id="job-modal-title">Update Job</h3>
+      </div>
+      <button type="button" class="modal-close-button" id="job-modal-close" aria-label="Close">×</button>
+    </div>
+
+    <div class="group-modal-body">
+      <form method="post">
+        <input type="hidden" name="form_type" value="edit_job">
+        <input type="hidden" name="job_id" id="edit_job_id">
+
+        <div class="settings-grid">
+          <label class="field">
+            <span>Job name</span>
+            <input type="text" name="job_name" id="edit_job_name" required>
+          </label>
+
+          <label class="field">
+            <span>Description</span>
+            <input type="text" name="description" id="edit_job_description">
+          </label>
+
+          <label class="field">
+            <span>Target type</span>
+            <select name="target_type" id="edit_target_type" required>
+              <option value="machine">Machine</option>
+              <option value="group">Group</option>
+            </select>
+          </label>
+
+          <label class="field target-field" id="edit_machine_target_field">
+            <span>Machine Target</span>
+            <select name="machine_target_id" id="edit_machine_target_id">
+              <option value="">Select a machine</option>
+              {% for machine in machines %}
+                <option value="{{ machine.id }}">{{ machine.display_name or machine.hostname }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field target-field" id="edit_group_target_field" style="display:none;">
+            <span>Group Target</span>
+            <select name="group_target_id" id="edit_group_target_id">
+              <option value="">Select a group</option>
+              {% for g in groups %}
+                <option value="{{ g.id }}">{{ g.group_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Action</span>
+            <select name="action_type" id="edit_action_type" required>
+              <option value="restart_service">Restart service</option>
+              <option value="stop_process">Stop process</option>
+              <option value="reboot_machine">Reboot machine</option>
+            </select>
+          </label>
+
+          <label class="field action-field" id="edit_service_name_field">
+            <span>Service name</span>
+            <input type="text" name="service_name" id="edit_service_name">
+          </label>
+
+          <label class="field action-field" id="edit_pid_field" style="display:none;">
+            <span>PID</span>
+            <input type="number" name="pid" id="edit_pid">
+          </label>
+
+          <label class="field action-field" id="edit_delay_seconds_field" style="display:none;">
+            <span>Reboot delay (seconds)</span>
+            <input type="number" name="delay_seconds" id="edit_delay_seconds" min="0">
+          </label>
+
+          <label class="field">
+            <span>Interval (minutes)</span>
+            <input type="number" name="interval_minutes" id="edit_interval_minutes" min="1" required>
+          </label>
+
+          <label class="checkbox-field checkbox-panel">
+            <input type="checkbox" name="auto_approve" id="edit_auto_approve">
+            <div>
+              <strong>Auto-approve commands</strong>
+              <small class="helper-text">Automatically queue commands without waiting for operator approval.</small>
+            </div>
+          </label>
+
+          <label class="checkbox-field checkbox-panel">
+            <input type="checkbox" name="only_when_online" id="edit_only_when_online">
+            <div>
+              <strong>Only run when machine is online</strong>
+              <small class="helper-text">Skips execution when a target is offline during the scheduler tick.</small>
+            </div>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="button-primary">Save Job</button>
+          <button type="button" class="button-secondary" id="job-modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="group-modal-backdrop" id="job-details-modal-backdrop" hidden>
+  <div class="group-modal" role="dialog" aria-modal="true" aria-labelledby="job-details-modal-title">
+    <div class="group-modal-header">
+      <div>
+        <div class="eyebrow">Scheduled Job</div>
+        <h3 id="job-details-modal-title">Job Details</h3>
+      </div>
+      <button type="button" class="modal-close-button" id="job-details-modal-close" aria-label="Close">×</button>
+    </div>
+
+    <div class="group-modal-body">
+      <div class="settings-grid">
+        <div class="field">
+          <span>Job</span>
+          <div class="modal-readout" id="job_details_name">—</div>
+        </div>
+        <div class="field">
+          <span>Target</span>
+          <div class="modal-readout" id="job_details_target">—</div>
+        </div>
+        <div class="field">
+          <span>Action</span>
+          <div class="modal-readout" id="job_details_action">—</div>
+        </div>
+        <div class="field">
+          <span>Interval</span>
+          <div class="modal-readout" id="job_details_interval">—</div>
+        </div>
+        <div class="field">
+          <span>Next Run</span>
+          <div class="modal-readout" id="job_details_next_run">—</div>
+        </div>
+        <div class="field">
+          <span>Status</span>
+          <div class="modal-readout" id="job_details_status">—</div>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <span>Description</span>
+        <div class="modal-readout" id="job_details_description">—</div>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <span>Payload JSON</span>
+        <pre class="modal-code-block" id="job_details_payload">{}</pre>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <span>Flags</span>
+        <div class="modal-readout" id="job_details_flags">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="group-modal-backdrop" id="run-details-modal-backdrop" hidden>
+  <div class="group-modal" role="dialog" aria-modal="true" aria-labelledby="run-details-modal-title">
+    <div class="group-modal-header">
+      <div>
+        <div class="eyebrow">Scheduler Run</div>
+        <h3 id="run-details-modal-title">Run Details</h3>
+      </div>
+      <button type="button" class="modal-close-button" id="run-details-modal-close" aria-label="Close">×</button>
+    </div>
+
+    <div class="group-modal-body">
+      <div class="settings-grid">
+        <div class="field">
+          <span>Job</span>
+          <div class="modal-readout" id="run_details_job">—</div>
+        </div>
+        <div class="field">
+          <span>Status</span>
+          <div class="modal-readout" id="run_details_status">—</div>
+        </div>
+        <div class="field">
+          <span>Recorded</span>
+          <div class="modal-readout" id="run_details_recorded">—</div>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <span>Summary</span>
+        <pre class="modal-code-block" id="run_details_summary">—</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.automation-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.automation-header-badges{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.automation-summary-grid{
+  margin-bottom:18px;
+}
+
+.automation-top-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+  gap:20px;
+}
+
+.automation-card{
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(255,255,255,.025) 0%, rgba(255,255,255,.012) 100%);
+  padding:18px;
+}
+
+.group-stack{
+  display:grid;
+  gap:14px;
+}
+
+.group-card{
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:16px;
+  background:rgba(255,255,255,.02);
+}
+
+.group-card-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:12px;
+}
+
+.group-title-row{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:6px;
+}
+
+.group-title-row h4{
+  margin:0;
+}
+
+.group-actions-inline{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.group-color-indicator{
+  width:14px;
+  height:14px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  box-shadow:0 0 10px rgba(255,255,255,.08);
+}
+
+.group-members-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+}
+
+.group-member-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.job-builder-grid{
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) 300px;
+  gap:20px;
+}
+
+.job-builder-main{
+  min-width:0;
+}
+
+.job-builder-side{
+  align-self:start;
+}
+
+.automation-side-card{
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(255,255,255,.03) 0%, rgba(255,255,255,.015) 100%);
+  padding:18px;
+  box-shadow:var(--shadow);
+}
+
+.automation-side-card h3{
+  margin:0 0 14px;
+}
+
+.automation-side-list{
+  display:grid;
+  gap:12px;
+}
+
+.automation-side-item{
+  display:grid;
+  gap:4px;
+  padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.automation-side-item:last-child{
+  border-bottom:0;
+  padding-bottom:0;
+}
+
+.automation-side-item strong{
+  font-size:14px;
+}
+
+.automation-side-item span{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+
+.checkbox-panel{
+  padding:14px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(255,255,255,.02);
+  min-height:100%;
+}
+
+.checkbox-panel strong{
+  display:block;
+  color:var(--text);
+  margin-bottom:4px;
+}
+
+.automation-helper-note{
+  margin-top:10px;
+}
+
+.automation-filter-bar{
+  margin:0 0 16px;
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:18px;
+  background:rgba(255,255,255,.02);
+}
+
+.automation-filter-grid{
+  display:grid;
+  grid-template-columns:minmax(260px, 2fr) repeat(2, minmax(170px, 1fr)) auto;
+  gap:14px;
+  align-items:end;
+}
+
+.automation-search-field{
+  min-width:0;
+}
+
+.filter-summary-row{
+  margin-top:12px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.job-title{
+  font-weight:700;
+}
+
+.job-desc{
+  margin-top:4px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+
+.job-meta{
+  margin-top:8px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.job-target,
+.job-action{
+  line-height:1.45;
+}
+
+.next-run{
+  display:grid;
+  gap:4px;
+}
+
+.next-run small{
+  color:var(--muted);
+  font-size:12px;
+}
+
+.controls-stack{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.text-accent{
+  color:#91ffd0;
+}
+
+.text-danger{
+  color:#ff8e8e;
+}
+
+.row-overdue{
+  background:rgba(255,77,77,.08);
+}
+
+.group-modal-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(3,8,18,.72);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  z-index:999;
+  backdrop-filter:blur(6px);
+}
+
+.group-modal-backdrop[hidden]{
+  display:none !important;
+}
+
+.group-modal{
+  width:min(820px, 100%);
+  border:1px solid var(--border);
+  border-radius:22px;
+  background:linear-gradient(180deg, rgba(13,25,48,.98), rgba(10,20,38,.98));
+  box-shadow:0 20px 60px rgba(0,0,0,.45);
+  max-height:90vh;
+  overflow:auto;
+}
+
+.group-modal-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  padding:20px 20px 14px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.group-modal-body{
+  padding:18px 20px 20px;
+}
+
+.modal-close-button{
+  border:none;
+  background:rgba(255,255,255,.06);
+  color:#fff;
+  width:36px;
+  height:36px;
+  border-radius:999px;
+  cursor:pointer;
+  font-size:22px;
+  line-height:1;
+}
+
+.modal-readout{
+  margin-top:6px;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.02);
+  color:#dce8f5;
+  line-height:1.5;
+}
+
+.modal-code-block{
+  margin:6px 0 0;
+  padding:14px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.03);
+  color:#dce8f5;
+  white-space:pre-wrap;
+  word-break:break-word;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size:12px;
+  line-height:1.5;
+}
+
+@media (max-width: 1100px){
+  .job-builder-grid{
+    grid-template-columns:1fr;
+  }
+
+  .automation-filter-grid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .filter-actions{
+    grid-column:1 / -1;
+  }
+}
+
+@media (max-width: 860px){
+  .automation-header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .automation-header-badges{
+    justify-content:flex-start;
+  }
+
+  .automation-filter-grid{
+    grid-template-columns:1fr;
+  }
+
+  .group-card-top{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+}
+</style>
+
+<script>
+(function () {
+  const targetType = document.getElementById("target_type");
+  const machineField = document.getElementById("machine_target_field");
+  const groupField = document.getElementById("group_target_field");
+  const actionType = document.getElementById("action_type");
+  const serviceField = document.getElementById("service_name_field");
+  const pidField = document.getElementById("pid_field");
+  const delayField = document.getElementById("delay_seconds_field");
+
+  function syncTargetFields() {
+    if (!targetType || !machineField || !groupField) return;
+
+    const value = targetType.value;
+    machineField.style.display = value === "group" ? "none" : "";
+    groupField.style.display = value === "group" ? "" : "none";
+  }
+
+  function syncActionFields() {
+    if (!actionType || !serviceField || !pidField || !delayField) return;
+
+    const value = actionType.value;
+    serviceField.style.display = value === "restart_service" ? "" : "none";
+    pidField.style.display = value === "stop_process" ? "" : "none";
+    delayField.style.display = value === "reboot_machine" ? "" : "none";
+  }
+
+  if (targetType) {
+    targetType.addEventListener("change", syncTargetFields);
+    syncTargetFields();
+  }
+
+  if (actionType) {
+    actionType.addEventListener("change", syncActionFields);
+    syncActionFields();
+  }
+
+  const modalBackdrop = document.getElementById("group-modal-backdrop");
+  const modalClose = document.getElementById("group-modal-close");
+  const modalCancel = document.getElementById("group-modal-cancel");
+
+  function openGroupModal(data) {
+    document.getElementById("edit_group_id").value = data.id || "";
+    document.getElementById("edit_group_name").value = data.name || "";
+    document.getElementById("edit_group_description").value = data.description || "";
+    document.getElementById("edit_group_color").value = data.color || "#00cc66";
+    modalBackdrop.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeGroupModal() {
+    modalBackdrop.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  document.querySelectorAll(".group-edit-trigger").forEach((button) => {
+    button.addEventListener("click", function () {
+      openGroupModal({
+        id: button.dataset.groupId,
+        name: button.dataset.groupName,
+        description: button.dataset.groupDescription,
+        color: button.dataset.groupColor
+      });
+    });
+  });
+
+  if (modalClose) modalClose.addEventListener("click", closeGroupModal);
+  if (modalCancel) modalCancel.addEventListener("click", closeGroupModal);
+
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener("click", function (event) {
+      if (event.target === modalBackdrop) closeGroupModal();
+    });
+  }
+
+  const jobModal = document.getElementById("job-modal-backdrop");
+  const jobModalClose = document.getElementById("job-modal-close");
+  const jobModalCancel = document.getElementById("job-modal-cancel");
+  const editTargetType = document.getElementById("edit_target_type");
+  const editMachineTargetField = document.getElementById("edit_machine_target_field");
+  const editGroupTargetField = document.getElementById("edit_group_target_field");
+  const editActionType = document.getElementById("edit_action_type");
+  const editServiceField = document.getElementById("edit_service_name_field");
+  const editPidField = document.getElementById("edit_pid_field");
+  const editDelayField = document.getElementById("edit_delay_seconds_field");
+
+  function syncEditTargetFields() {
+    if (!editTargetType || !editMachineTargetField || !editGroupTargetField) return;
+    const value = editTargetType.value;
+    editMachineTargetField.style.display = value === "group" ? "none" : "";
+    editGroupTargetField.style.display = value === "group" ? "" : "none";
+  }
+
+  function syncEditActionFields() {
+    if (!editActionType || !editServiceField || !editPidField || !editDelayField) return;
+    const value = editActionType.value;
+    editServiceField.style.display = value === "restart_service" ? "" : "none";
+    editPidField.style.display = value === "stop_process" ? "" : "none";
+    editDelayField.style.display = value === "reboot_machine" ? "" : "none";
+  }
+
+  function safeParsePayload(raw) {
+    try {
+      return JSON.parse(raw || "{}");
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function openJobModal(data) {
+    const payload = safeParsePayload(data.payload);
+
+    document.getElementById("edit_job_id").value = data.id || "";
+    document.getElementById("edit_job_name").value = data.name || "";
+    document.getElementById("edit_job_description").value = data.description || "";
+    document.getElementById("edit_target_type").value = data.targetType || "machine";
+    document.getElementById("edit_machine_target_id").value = data.machineTargetId || "";
+    document.getElementById("edit_group_target_id").value = data.groupTargetId || "";
+    document.getElementById("edit_action_type").value = data.action || "restart_service";
+    document.getElementById("edit_interval_minutes").value = data.interval || "60";
+    document.getElementById("edit_auto_approve").checked = String(data.autoApprove) === "1";
+    document.getElementById("edit_only_when_online").checked = String(data.onlyOnline) === "1";
+
+    document.getElementById("edit_service_name").value = payload.service_name || "";
+    document.getElementById("edit_pid").value = payload.pid || "";
+    document.getElementById("edit_delay_seconds").value = payload.delay_seconds || "5";
+
+    syncEditTargetFields();
+    syncEditActionFields();
+
+    jobModal.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeJobModal() {
+    jobModal.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  document.querySelectorAll(".job-edit-trigger").forEach((button) => {
+    button.addEventListener("click", function () {
+      openJobModal({
+        id: button.dataset.jobId,
+        name: button.dataset.jobName,
+        description: button.dataset.jobDescription,
+        targetType: button.dataset.jobTargetType,
+        machineTargetId: button.dataset.jobMachineTargetId,
+        groupTargetId: button.dataset.jobGroupTargetId,
+        action: button.dataset.jobAction,
+        payload: button.dataset.jobPayload,
+        interval: button.dataset.jobInterval,
+        autoApprove: button.dataset.jobAutoApprove,
+        onlyOnline: button.dataset.jobOnlyOnline
+      });
+    });
+  });
+
+  if (editTargetType) {
+    editTargetType.addEventListener("change", syncEditTargetFields);
+    syncEditTargetFields();
+  }
+
+  if (editActionType) {
+    editActionType.addEventListener("change", syncEditActionFields);
+    syncEditActionFields();
+  }
+
+  if (jobModalClose) jobModalClose.addEventListener("click", closeJobModal);
+  if (jobModalCancel) jobModalCancel.addEventListener("click", closeJobModal);
+
+  if (jobModal) {
+    jobModal.addEventListener("click", function (event) {
+      if (event.target === jobModal) closeJobModal();
+    });
+  }
+
+  const jobDetailsModal = document.getElementById("job-details-modal-backdrop");
+  const jobDetailsClose = document.getElementById("job-details-modal-close");
+
+  function openJobDetails(data) {
+    document.getElementById("job_details_name").textContent = data.name || "—";
+    document.getElementById("job_details_target").textContent = data.targetLabel || "—";
+    document.getElementById("job_details_action").textContent = data.action || "—";
+    document.getElementById("job_details_interval").textContent = (data.interval || "—") + " min";
+    document.getElementById("job_details_next_run").textContent = data.nextRun || "Not scheduled";
+    document.getElementById("job_details_status").textContent = String(data.enabled) === "1" ? "Enabled" : "Disabled";
+    document.getElementById("job_details_description").textContent = data.description || "—";
+    document.getElementById("job_details_payload").textContent = data.payload || "{}";
+
+    const flags = [];
+    if (String(data.autoApprove) === "1") flags.push("Auto Approve");
+    if (String(data.onlyOnline) === "1") flags.push("Online Only");
+    document.getElementById("job_details_flags").textContent = flags.length ? flags.join(" • ") : "No special flags";
+
+    jobDetailsModal.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeJobDetails() {
+    jobDetailsModal.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  document.querySelectorAll(".job-details-trigger").forEach((button) => {
+    button.addEventListener("click", function () {
+      openJobDetails({
+        name: button.dataset.jobName,
+        description: button.dataset.jobDescription,
+        targetLabel: button.dataset.jobTargetLabel,
+        action: button.dataset.jobAction,
+        payload: button.dataset.jobPayload,
+        interval: button.dataset.jobInterval,
+        nextRun: button.dataset.jobNextRun,
+        enabled: button.dataset.jobEnabled,
+        autoApprove: button.dataset.jobAutoApprove,
+        onlyOnline: button.dataset.jobOnlyOnline
+      });
+    });
+  });
+
+  if (jobDetailsClose) jobDetailsClose.addEventListener("click", closeJobDetails);
+
+  if (jobDetailsModal) {
+    jobDetailsModal.addEventListener("click", function (event) {
+      if (event.target === jobDetailsModal) closeJobDetails();
+    });
+  }
+
+  const runDetailsModal = document.getElementById("run-details-modal-backdrop");
+  const runDetailsClose = document.getElementById("run-details-modal-close");
+
+  function openRunDetails(data) {
+    document.getElementById("run_details_job").textContent = data.job || "—";
+    document.getElementById("run_details_status").textContent = data.status || "—";
+    document.getElementById("run_details_recorded").textContent = data.recorded || "—";
+    document.getElementById("run_details_summary").textContent = data.summary || "—";
+
+    runDetailsModal.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeRunDetails() {
+    runDetailsModal.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  document.querySelectorAll(".run-details-trigger").forEach((button) => {
+    button.addEventListener("click", function () {
+      openRunDetails({
+        job: button.dataset.runJob,
+        status: button.dataset.runStatus,
+        summary: button.dataset.runSummary,
+        recorded: button.dataset.runRecorded
+      });
+    });
+  });
+
+  if (runDetailsClose) runDetailsClose.addEventListener("click", closeRunDetails);
+
+  if (runDetailsModal) {
+    runDetailsModal.addEventListener("click", function (event) {
+      if (event.target === runDetailsModal) closeRunDetails();
+    });
+  }
+
+  async function refreshAutomationSummary() {
+    try {
+      const response = await fetch("{{ url_for('automation.automation_summary_api') }}", {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+        cache: "no-store"
+      });
+
+      if (!response.ok) return;
+      const data = await response.json();
+      const summary = data.summary || {};
+
+      const groups = summary.groups || 0;
+      const jobsTotal = summary.jobs_total || 0;
+      const recentRuns = summary.recent_runs || 0;
+      const overdueJobs = summary.overdue_jobs || 0;
+      const noScheduleJobs = summary.no_schedule_jobs || 0;
+      const enabledJobs = summary.jobs_enabled || 0;
+      const disabledJobs = summary.jobs_disabled || 0;
+      const groupMembers = summary.group_members || 0;
+      const successRuns = summary.recent_success_runs || 0;
+      const failedRuns = summary.recent_failed_runs || 0;
+
+      const pluralize = (count, singular, plural) => `${count} ${count === 1 ? singular : plural}`;
+
+      const headerGroups = document.getElementById("header-groups");
+      const headerJobs = document.getElementById("header-jobs");
+      const headerRuns = document.getElementById("header-runs");
+      const headerOverdue = document.getElementById("header-overdue");
+      const headerUnscheduled = document.getElementById("header-unscheduled");
+
+      if (headerGroups) headerGroups.textContent = pluralize(groups, "group", "groups");
+      if (headerJobs) headerJobs.textContent = pluralize(jobsTotal, "job", "jobs");
+      if (headerRuns) headerRuns.textContent = `${recentRuns} recent run${recentRuns === 1 ? "" : "s"}`;
+      if (headerOverdue) headerOverdue.textContent = `${overdueJobs} overdue`;
+      if (headerUnscheduled) headerUnscheduled.textContent = `${noScheduleJobs} unscheduled`;
+
+      const summaryGroups = document.getElementById("summary-groups");
+      const summaryEnabled = document.getElementById("summary-enabled");
+      const summaryRuns = document.getElementById("summary-runs");
+      const summaryGroupMembers = document.getElementById("summary-group-members");
+      const summaryDisabled = document.getElementById("summary-disabled");
+      const summaryOverdue = document.getElementById("summary-overdue");
+      const summaryUnscheduled = document.getElementById("summary-unscheduled");
+      const summaryRunSuccess = document.getElementById("summary-run-success");
+      const summaryRunFailed = document.getElementById("summary-run-failed");
+
+      if (summaryGroups) summaryGroups.textContent = groups;
+      if (summaryEnabled) summaryEnabled.textContent = enabledJobs;
+      if (summaryRuns) summaryRuns.textContent = recentRuns;
+      if (summaryGroupMembers) summaryGroupMembers.textContent = `${groupMembers} member${groupMembers === 1 ? "" : "s"}`;
+      if (summaryDisabled) summaryDisabled.textContent = `${disabledJobs} disabled`;
+      if (summaryOverdue) summaryOverdue.textContent = `${overdueJobs} overdue`;
+      if (summaryUnscheduled) summaryUnscheduled.textContent = `${noScheduleJobs} unscheduled`;
+      if (summaryRunSuccess) summaryRunSuccess.textContent = `${successRuns} successful`;
+      if (summaryRunFailed) summaryRunFailed.textContent = `${failedRuns} failed`;
+    } catch (error) {
+      console.error("Automation summary refresh failed:", error);
+    }
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      if (modalBackdrop && !modalBackdrop.hidden) closeGroupModal();
+      if (jobModal && !jobModal.hidden) closeJobModal();
+      if (jobDetailsModal && !jobDetailsModal.hidden) closeJobDetails();
+      if (runDetailsModal && !runDetailsModal.hidden) closeRunDetails();
+    }
+  });
+
+  setInterval(refreshAutomationSummary, 10000);
+})();
+</script>
+
+{% endblock %}
