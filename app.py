@@ -33,10 +33,12 @@ from services.privacy import (
     mask_hostname,
     mask_user,
     mask_device_id,
+    mask_freeform_text,
     maybe_mask_ip,
     maybe_mask_hostname,
     maybe_mask_user,
     maybe_mask_device_id,
+    maybe_mask_freeform_text,
 )
 
 
@@ -111,10 +113,12 @@ def create_app():
             "mask_host": mask_hostname,
             "mask_user": mask_user,
             "mask_device_id": mask_device_id,
+            "mask_freeform_text": mask_freeform_text,
             "maybe_mask_ip": maybe_mask_ip,
             "maybe_mask_hostname": maybe_mask_hostname,
             "maybe_mask_user": maybe_mask_user,
             "maybe_mask_device_id": maybe_mask_device_id,
+            "maybe_mask_freeform_text": maybe_mask_freeform_text,
         }
 
     # ---------------------------------------------------------
