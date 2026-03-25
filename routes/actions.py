@@ -33,17 +33,62 @@ def _action_label(action_type):
         return "Restart Service"
     if action_type == "stop_process":
         return "Stop Process"
+    if action_type == "run_program":
+        return "Launch Program"
     if action_type == "reboot_machine":
         return "Reboot Machine"
     return action_type or "Unknown"
 
 
+def _get_command_payload_json(row_dict):
+    return (
+        row_dict.get("action_payload_json")
+        or row_dict.get("payload_json")
+        or "{}"
+    )
+
+
 def _normalize_command(row):
     item = dict(row)
-    item["payload"] = _safe_json_load(item.get("action_payload_json"))
+    raw_payload = _get_command_payload_json(item)
+    item["payload"] = _safe_json_load(raw_payload)
+    item["action_payload_json"] = raw_payload
     item["status_normalized"] = (item.get("status") or "").lower()
     item["action_label"] = _action_label(item.get("action_type"))
     return item
+
+
+def _get_recent_process_choices(cur, machine_id, limit=100):
+    cur.execute(
+        """
+        SELECT
+            pid,
+            process_name,
+            MAX(recorded_at) AS last_seen
+        FROM process_snapshots
+        WHERE machine_id = ?
+          AND pid IS NOT NULL
+          AND process_name IS NOT NULL
+          AND TRIM(process_name) != ''
+        GROUP BY pid, process_name
+        ORDER BY datetime(last_seen) DESC, process_name ASC
+        LIMIT ?
+        """,
+        (machine_id, limit),
+    )
+    rows = cur.fetchall()
+
+    process_choices = []
+    for row in rows:
+        process_choices.append(
+            {
+                "pid": row["pid"],
+                "process_name": row["process_name"],
+                "last_seen": row["last_seen"],
+            }
+        )
+
+    return process_choices
 
 
 def _load_action_data(status_filter="all", machine_filter="all"):
@@ -59,6 +104,10 @@ def _load_action_data(status_filter="all", machine_filter="all"):
             """
         )
         machines = cur.fetchall()
+
+        machine_process_options = {}
+        for machine in machines:
+            machine_process_options[machine["id"]] = _get_recent_process_choices(cur, machine["id"], limit=100)
 
         cur.execute(
             """
@@ -117,6 +166,7 @@ def _load_action_data(status_filter="all", machine_filter="all"):
 
     return {
         "machines": machines,
+        "machine_process_options": machine_process_options,
         "commands": all_commands,
         "pending_commands": pending_commands,
         "active_commands": active_commands,
@@ -177,11 +227,25 @@ def actions():
                     payload["service_name"] = service_name
 
                 elif action_type == "stop_process":
-                    pid = _clean_text(request.form.get("pid"))
-                    if not pid or not pid.isdigit():
+                    selected_pid = _clean_text(request.form.get("selected_pid"))
+                    manual_pid = _clean_text(request.form.get("pid"))
+
+                    pid_value = manual_pid or selected_pid
+
+                    if not pid_value or not pid_value.isdigit():
                         flash("Valid PID required.", "warning")
                         return _redirect_after_action(machine_id)
-                    payload["pid"] = int(pid)
+
+                    payload["pid"] = int(pid_value)
+
+                elif action_type == "run_program":
+                    command_text = _clean_text(request.form.get("command_text"))
+
+                    if not command_text:
+                        flash("Command text is required.", "warning")
+                        return _redirect_after_action(machine_id)
+
+                    payload["command_text"] = command_text
 
                 elif action_type == "reboot_machine":
                     delay = _clean_text(request.form.get("delay_seconds"), "5")
@@ -242,6 +306,7 @@ def actions():
     return render_template(
         "actions.html",
         machines=data["machines"],
+        machine_process_options=data["machine_process_options"],
         commands=data["commands"],
         pending_commands=data["pending_commands"],
         active_commands=data["active_commands"],

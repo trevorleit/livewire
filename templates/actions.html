@@ -101,7 +101,7 @@
           <div class="action-builder-grid">
             <label class="field">
               <span>Machine</span>
-              <select name="machine_id" required>
+              <select name="machine_id" id="machine_id" required>
                 {% for machine in machines %}
                 <option value="{{ machine.id }}">
                   {{ machine.display_name or machine.hostname }}{% if machine.machine_role %} · {{ machine.machine_role }}{% endif %}{% if not machine.is_online %} · offline{% endif %}
@@ -116,6 +116,7 @@
               <select name="action_type" id="action_type" required>
                 <option value="restart_service">Restart Service</option>
                 <option value="stop_process">Stop Process</option>
+                <option value="run_program">Launch Program</option>
                 <option value="reboot_machine">Reboot Machine</option>
               </select>
               <small class="helper-text">The form updates automatically based on the selected action.</small>
@@ -123,14 +124,33 @@
 
             <label class="field action-field" id="service_name_field">
               <span>Service Name</span>
-              <input type="text" name="service_name" placeholder="Apache or MySQL">
+              <input type="text" name="service_name" placeholder="Apache2.4 or Spooler">
               <small class="helper-text">Used for restart_service commands.</small>
             </label>
 
+            <label class="field action-field" id="process_select_field" style="display:none;">
+              <span>Running Process</span>
+              <select name="selected_pid" id="selected_pid">
+                <option value="">Select a running process</option>
+              </select>
+              <small class="helper-text">Pulled from recent process snapshots for the selected machine.</small>
+            </label>
+
             <label class="field action-field" id="pid_field" style="display:none;">
-              <span>PID</span>
-              <input type="number" name="pid" placeholder="1234">
-              <small class="helper-text">Used for stop_process commands.</small>
+              <span>Manual PID Override</span>
+              <input type="number" name="pid" id="pid_input" placeholder="1234" min="1" step="1">
+              <small class="helper-text">Optional. If filled in, this PID should override the dropdown selection.</small>
+            </label>
+
+            <label class="field action-field command-field" id="command_text_field" style="display:none;">
+              <span>Command / Executable Path</span>
+              <input
+                type="text"
+                name="command_text"
+                id="command_text_input"
+                placeholder='notepad.exe or "C:\Program Files\App\app.exe"'
+              >
+              <small class="helper-text">Used for run_program. You can enter an executable, script, or full command line.</small>
             </label>
 
             <label class="field action-field" id="delay_field" style="display:none;">
@@ -158,7 +178,11 @@
             </div>
             <div class="builder-note-item">
               <strong>Stop Process</strong>
-              <span>Confirm the PID carefully before approval.</span>
+              <span>Use the live dropdown first, then override with a manual PID only when needed.</span>
+            </div>
+            <div class="builder-note-item">
+              <strong>Launch Program</strong>
+              <span>Use a trusted executable path or command. Quote paths that contain spaces.</span>
             </div>
             <div class="builder-note-item">
               <strong>Reboot Machine</strong>
@@ -494,7 +518,11 @@
         </div>
         <div class="actions-side-item">
           <strong>Stop Process</strong>
-          <span>Double-check PIDs before approving the command.</span>
+          <span>Choose from the recent process list whenever possible.</span>
+        </div>
+        <div class="actions-side-item">
+          <strong>Launch Program</strong>
+          <span>Use a trusted executable or fully qualified command whenever possible.</span>
         </div>
       </div>
     </div>
@@ -586,6 +614,10 @@
   </div>
 </div>
 
+<script id="machine-process-options-data" type="application/json">
+{{ (machine_process_options or {})|tojson }}
+</script>
+
 <style>
 .actions-hero{
   margin-bottom:18px;
@@ -643,6 +675,10 @@
   display:grid;
   grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
   gap:14px;
+}
+
+.command-field{
+  grid-column:span 2;
 }
 
 .action-helper-note{
@@ -993,6 +1029,10 @@
   .command-detail-wide{
     grid-column:span 1;
   }
+
+  .command-field{
+    grid-column:span 1;
+  }
 }
 
 @media (max-width: 700px){
@@ -1018,23 +1058,80 @@
 <script>
 (function () {
   const actionType = document.getElementById("action_type");
+  const machineSelect = document.getElementById("machine_id");
   const serviceField = document.getElementById("service_name_field");
+  const processSelectField = document.getElementById("process_select_field");
+  const processSelect = document.getElementById("selected_pid");
   const pidField = document.getElementById("pid_field");
+  const commandTextField = document.getElementById("command_text_field");
   const delayField = document.getElementById("delay_field");
 
+  let machineProcessOptions = {};
+  try {
+    const rawProcessData = document.getElementById("machine-process-options-data");
+    machineProcessOptions = rawProcessData ? JSON.parse(rawProcessData.textContent || "{}") : {};
+  } catch (error) {
+    console.error("Failed to parse machine process options:", error);
+    machineProcessOptions = {};
+  }
+
+  function buildProcessOptionLabel(proc) {
+    const processName = proc.process_name || proc.name || "Unknown Process";
+    const pid = proc.pid || "";
+    return `${processName} (PID ${pid})`;
+  }
+
+  function refreshProcessOptions() {
+    if (!machineSelect || !processSelect) return;
+
+    const machineId = String(machineSelect.value || "");
+    const items = machineProcessOptions[machineId] || machineProcessOptions[Number(machineId)] || [];
+
+    processSelect.innerHTML = "";
+
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = items.length
+      ? "Select a running process"
+      : "No recent processes available";
+    processSelect.appendChild(placeholder);
+
+    items.forEach((proc) => {
+      if (!proc || !proc.pid) return;
+      const option = document.createElement("option");
+      option.value = proc.pid;
+      option.textContent = buildProcessOptionLabel(proc);
+      processSelect.appendChild(option);
+    });
+  }
+
   function sync() {
-    if (!actionType || !serviceField || !pidField || !delayField) return;
+    if (!actionType || !serviceField || !processSelectField || !pidField || !commandTextField || !delayField) return;
 
     const value = actionType.value;
     serviceField.style.display = value === "restart_service" ? "" : "none";
+    processSelectField.style.display = value === "stop_process" ? "" : "none";
     pidField.style.display = value === "stop_process" ? "" : "none";
+    commandTextField.style.display = value === "run_program" ? "" : "none";
     delayField.style.display = value === "reboot_machine" ? "" : "none";
+
+    if (value === "stop_process") {
+      refreshProcessOptions();
+    }
   }
 
   if (actionType) {
     actionType.addEventListener("change", sync);
-    sync();
   }
+
+  if (machineSelect) {
+    machineSelect.addEventListener("change", function () {
+      refreshProcessOptions();
+    });
+  }
+
+  sync();
+  refreshProcessOptions();
 
   const modalBackdrop = document.getElementById("command-modal-backdrop");
   const modalClose = document.getElementById("command-modal-close");

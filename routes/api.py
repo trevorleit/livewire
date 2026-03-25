@@ -531,7 +531,11 @@ def command_next():
 
         cur.execute(
             """
-            SELECT *
+            SELECT
+                id,
+                action_type,
+                COALESCE(action_payload_json, payload_json, '{}') AS action_payload_json,
+                COALESCE(payload_json, action_payload_json, '{}') AS payload_json
             FROM remote_commands
             WHERE machine_id = ?
               AND status = 'approved'
@@ -547,8 +551,7 @@ def command_next():
         cur.execute(
             """
             UPDATE remote_commands
-            SET status = 'sent',
-                created_at = CURRENT_TIMESTAMP
+            SET status = 'sent'
             WHERE id = ?
             """,
             (row["id"],),
@@ -561,6 +564,7 @@ def command_next():
                     "id": row["id"],
                     "action_type": row["action_type"],
                     "payload_json": row["payload_json"],
+                    "action_payload_json": row["action_payload_json"],
                 }
             }
         )

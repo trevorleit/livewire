@@ -1445,39 +1445,129 @@ def collect() -> Dict[str, Any]:
 # Remote command execution
 # -------------------------------------------------------------------
 
+def parse_command_payload(command: Dict[str, Any]) -> Dict[str, Any]:
+    raw_payload = (
+        command.get("action_payload_json")
+        or command.get("payload_json")
+        or "{}"
+    )
+
+    if isinstance(raw_payload, dict):
+        return raw_payload
+
+    if isinstance(raw_payload, str):
+        try:
+            parsed = json.loads(raw_payload)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+
+    return {}
+
+
 def execute_command(command: Dict[str, Any]) -> Tuple[bool, str]:
-    action = command.get("action_type")
-    payload = json.loads(command.get("payload_json") or "{}")
+    action = str(command.get("action_type") or "").strip()
+    payload = parse_command_payload(command)
+
+    if action == "run_program":
+        cmd = str(payload.get("command_text") or "").strip()
+
+        if not cmd:
+            return False, "Missing command_text"
+
+        try:
+            subprocess.Popen(
+                cmd,
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return True, f"Launched: {cmd}"
+        except Exception as exc:
+            return False, f"Failed to launch: {exc}"
 
     if action == "restart_service":
-        service_name = payload.get("service_name", "")
+        service_name = str(payload.get("service_name") or "").strip()
         if not service_name:
             return False, "Missing service_name"
 
-        a = subprocess.run(["sc", "stop", service_name], capture_output=True, text=True, timeout=30)
-        time.sleep(2)
-        b = subprocess.run(["sc", "start", service_name], capture_output=True, text=True, timeout=30)
+        try:
+            a = subprocess.run(
+                ["sc", "stop", service_name],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            time.sleep(2)
+            b = subprocess.run(
+                ["sc", "start", service_name],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
 
-        return (
-            b.returncode == 0,
-            (a.stdout + "\n" + b.stdout + "\n" + a.stderr + "\n" + b.stderr).strip(),
-        )
+            output = (
+                (a.stdout or "")
+                + "\n"
+                + (b.stdout or "")
+                + "\n"
+                + (a.stderr or "")
+                + "\n"
+                + (b.stderr or "")
+            ).strip()
+
+            return b.returncode == 0, output
+        except Exception as exc:
+            return False, f"Failed to restart service {service_name}: {exc}"
 
     if action == "stop_process":
-        pid = payload.get("pid")
-        if not pid:
+        try:
+            pid = int(payload.get("pid", 0))
+        except (TypeError, ValueError):
+            pid = 0
+
+        if pid <= 0:
             return False, "Missing pid"
 
         try:
-            psutil.Process(int(pid)).terminate()
-            return True, f"Process {pid} terminated"
+            proc = psutil.Process(pid)
+            proc_name = proc.name()
+
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+                return True, f"Stopped PID {pid} ({proc_name})"
+            except psutil.TimeoutExpired:
+                proc.kill()
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    pass
+                return True, f"Force killed PID {pid} ({proc_name})"
+
+        except psutil.NoSuchProcess:
+            return False, f"PID {pid} not found"
+        except psutil.AccessDenied:
+            return False, f"Access denied stopping PID {pid}"
         except Exception as exc:
-            return False, str(exc)
+            return False, f"Failed to stop PID {pid}: {exc}"
 
     if action == "reboot_machine":
-        delay = int(payload.get("delay_seconds", 5))
-        r = subprocess.run(["shutdown", "/r", "/t", str(delay)], capture_output=True, text=True, timeout=10)
-        return r.returncode == 0, (r.stdout + "\n" + r.stderr).strip()
+        try:
+            delay = int(payload.get("delay_seconds", 5))
+        except (TypeError, ValueError):
+            delay = 5
+
+        try:
+            r = subprocess.run(
+                ["shutdown", "/r", "/t", str(delay)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            return r.returncode == 0, ((r.stdout or "") + "\n" + (r.stderr or "")).strip()
+        except Exception as exc:
+            return False, f"Failed to reboot machine: {exc}"
 
     return False, f"Unsupported action: {action}"
 

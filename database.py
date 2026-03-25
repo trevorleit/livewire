@@ -256,6 +256,7 @@ def ensure_core_schema() -> None:
                 machine_id INTEGER NOT NULL,
                 action_type TEXT NOT NULL,
                 payload_json TEXT,
+                action_payload_json TEXT,
                 status TEXT NOT NULL DEFAULT 'pending_approval',
                 result_text TEXT,
                 requested_by TEXT,
@@ -499,9 +500,29 @@ def ensure_core_schema() -> None:
         ensure_column(conn, "event_logs", "source", "TEXT")
         ensure_column(conn, "event_logs", "extra_json", "TEXT")
 
+        ensure_column(conn, "remote_commands", "payload_json", "TEXT")
+        ensure_column(conn, "remote_commands", "action_payload_json", "TEXT")
         ensure_column(conn, "remote_commands", "source", "TEXT")
         ensure_column(conn, "remote_commands", "trigger_alert_id", "INTEGER")
         ensure_column(conn, "remote_commands", "scheduled_job_id", "INTEGER")
+
+        if column_exists(conn, "remote_commands", "payload_json") and column_exists(conn, "remote_commands", "action_payload_json"):
+            conn.execute(
+                """
+                UPDATE remote_commands
+                SET action_payload_json = payload_json
+                WHERE action_payload_json IS NULL
+                  AND payload_json IS NOT NULL
+                """
+            )
+            conn.execute(
+                """
+                UPDATE remote_commands
+                SET payload_json = action_payload_json
+                WHERE payload_json IS NULL
+                  AND action_payload_json IS NOT NULL
+                """
+            )
 
         ensure_column(conn, "alerts", "status", "TEXT DEFAULT 'open'")
         ensure_column(conn, "alerts", "is_resolved", "INTEGER DEFAULT 0")
